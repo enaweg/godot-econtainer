@@ -16,6 +16,10 @@ run/main_scene="uid://bkd1fv4dhih3q"
 config/features=PackedStringArray("4.7", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[autoload]
+
+eContainer="*uid://ebvcs8ligmsr"
+
 [display]
 
 window/stretch/mode="canvas_items"

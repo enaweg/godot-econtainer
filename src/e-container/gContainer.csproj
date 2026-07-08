@@ -4,4 +4,8 @@
     <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="VContainer.SourceGenerator" Version="1.19.0" />
+    <PackageReference Include="VContainer.Standalone" Version="1.19.0" />
+  </ItemGroup>
 </Project>

@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://ebvcs8ligmsr"]
+
+[ext_resource type="Script" uid="uid://cglet1f2staai" path="res://addons/eContainer/src/Runtime/Godot/RootLifetimeScope.cs" id="1_7by6w"]
+
+[node name="eContainer" type="Node"]
+
+[node name="RootLifetimeScope" type="Node" parent="."]
+script = ExtResource("1_7by6w")
