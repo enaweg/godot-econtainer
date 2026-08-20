@@ -17,6 +17,11 @@ tracks its latest released version. Never modify, refactor, add tests for, or ot
 `addons/ePlugin/` as part of work on this repo. If a change to `ePlugin` itself seems necessary, say so instead of
 editing it here.
 
+## Git workflow
+
+Use the GitKraken MCP server for all git handling (status, add, commit, push, branching, pull requests, etc.)
+instead of raw `git`/`gh` shell commands.
+
 ## Commands
 
 There is no separate CLI build step outside of Godot/.NET tooling — the addons are Godot editor plugins, not
