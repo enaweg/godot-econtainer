@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -26,6 +27,11 @@ jobs:
         shell: bash
         run: |
           sed -i "s/version=\".*\"/version=\"${{ env.VERSION }}\"/g" src/e-container/addons/eContainer/plugin.cfg
+
+      - name: Deactivate plugin for distribution
+        shell: bash
+        run: |
+          mv src/e-container/addons/eContainer/src src/e-container/addons/eContainer/.src
 
       - name: Create artifact
         shell: bash
