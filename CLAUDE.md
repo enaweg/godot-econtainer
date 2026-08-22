@@ -33,9 +33,10 @@ standalone libraries.
   the normal way to exercise the plugins (they register/unregister themselves via the editor plugin lifecycle).
 - There is currently no automated test project in the repo (no `*Test*.csproj`). `IDotnetCli.RunTests()` exists as
   a hook in the `ePlugin` CLI abstraction but has no implementation/target wired up yet.
-- CI (`.github/workflows/ci-release.yml`) only runs on `v*` tag pushes: it stamps the version into
-  `addons/eContainer/plugin.cfg`, zips `addons/eContainer` into a release artifact, and drafts a GitHub release.
-  There is no build/lint/test CI on pushes or PRs.
+- CI (`.github/workflows/ci-pr.yml`) builds the Godot project and refreshes its headless editor cache for pull
+  requests. Release CI (`.github/workflows/ci-release.yml`) performs the same validation on `v*` tag pushes, stamps
+  the version into `addons/eContainer/plugin.cfg`, zips `addons/eContainer` into a release artifact, and drafts a
+  GitHub release. There is no automated test project in the repository.
 
 ## Architecture
 

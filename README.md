@@ -5,6 +5,7 @@
 **[VContainer](https://github.com/hadashiA/VContainer) - Unity's fast DI container - ported to [Godot](https://godotengine.org/).**
 
 ![CI](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-release.yml/badge.svg)
+![CI-PR](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-pr.yml/badge.svg)
 ![Godot 4.7.2](https://img.shields.io/badge/Godot-v4.7.2-202020?logo=godot-engine&logoColor=blue&color=darkgreen&labelColor=202020)
 ![Dotnet 8](https://img.shields.io/badge/8-02020?logo=dotnet&logoSize=auto&logoColor=purple&color=darkgreen&labelColor=E0E0E0)
 
@@ -90,11 +91,17 @@ public class PlayerService : IInitializable, ITickable
 To build the C# assembly:
 
 ```bash
-dotnet build src/e-container/gContainer.csproj
+dotnet nuget add source "$(pwd)/src/e-container/addons/eContainer/.libs" --name eContainer-local
+dotnet build src/e-container/gContainer.sln --configuration Debug
 ```
 
+The NuGet source setup is required on a clean checkout because the VContainer packages are bundled in the repository
+under `src/e-container/addons/eContainer/.libs` rather than published to nuget.org.
+
 Opening `src/e-container/project.godot` in the Godot 4.7.2 .NET editor also triggers a build automatically and is the
-normal way to exercise the plugins. There is currently no automated test project in this repository.
+normal way to exercise the plugins. Pull requests run the same .NET build followed by a headless Godot editor cache
+refresh. Pushing a `v*` tag runs that validation before stamping the plugin version, creating the release archive, and
+drafting the GitHub release. There is currently no automated test project in this repository.
 
 ### Project layout
 
