@@ -30,7 +30,7 @@ jobs:
 
       - name: Restore NuGet packages
         working-directory: src/e-container
-        run: dotnet restore gContainer.sln --configfile nuget.config
+        run: dotnet restore gContainer.sln
 
       - name: Build
         working-directory: src/e-container
