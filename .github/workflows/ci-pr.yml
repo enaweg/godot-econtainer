@@ -28,15 +28,13 @@ jobs:
         shell: bash
         run: echo "GODOT_BIN=$GODOT" >> "$GITHUB_ENV"
 
-      - name: Configure local NuGet source
+      - name: Restore NuGet packages
         working-directory: src/e-container
-        shell: bash
-        run: |
-          dotnet nuget add source "$(pwd)/addons/eContainer/.libs" --name eContainer-local
+        run: dotnet restore gContainer.sln --configfile nuget.config
 
       - name: Build
         working-directory: src/e-container
-        run: dotnet build gContainer.sln --configuration Debug
+        run: dotnet build gContainer.sln --configuration Debug --no-restore
 
       - name: Rebuild Godot project cache
         working-directory: src/e-container
