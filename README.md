@@ -91,8 +91,12 @@ public class PlayerService : IInitializable, ITickable
 To build the C# assembly:
 
 ```bash
+dotnet nuget add source "$(pwd)/src/e-container/addons/eContainer/.libs" --name eContainer-local
 dotnet build src/e-container/gContainer.sln --configuration Debug
 ```
+
+The NuGet source setup is required on a clean checkout because the VContainer packages are bundled in the repository
+under `src/e-container/addons/eContainer/.libs` rather than published to nuget.org.
 
 Opening `src/e-container/project.godot` in the Godot 4.7.2 .NET editor also triggers a build automatically and is the
 normal way to exercise the plugins. Pull requests run the same .NET build followed by a headless Godot editor cache

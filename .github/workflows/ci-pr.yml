@@ -28,6 +28,12 @@ jobs:
         shell: bash
         run: echo "GODOT_BIN=$GODOT" >> "$GITHUB_ENV"
 
+      - name: Configure local NuGet source
+        working-directory: src/e-container
+        shell: bash
+        run: |
+          dotnet nuget add source "$(pwd)/addons/eContainer/.libs" --name eContainer-local
+
       - name: Build
         working-directory: src/e-container
         run: dotnet build gContainer.sln --configuration Debug
