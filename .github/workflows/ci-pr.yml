@@ -45,4 +45,4 @@ jobs:
         working-directory: src/e-container
         run: |
           chmod +x addons/gdUnit4/runtest.sh
-          addons/gdUnit4/runtest.sh -a res://test -c --ignoreHeadlessMode
+          addons/gdUnit4/runtest.sh -a res://test -c --headless --ignoreHeadlessMode
