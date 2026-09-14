@@ -16,6 +16,14 @@ public class ParentReferenceTest
     }
 
     [TestCase]
+    public void Create_SetsOwnerTypeToGivenArgument()
+    {
+        var reference = ParentReference.Create<RootLifetimeScope>(typeof(ActionInstaller));
+
+        AssertObject(reference.OwnerType).IsEqual(typeof(ActionInstaller));
+    }
+
+    [TestCase]
     public void TypeName_Getter_ReflectsCurrentType()
     {
         var reference = ParentReference.Create<RootLifetimeScope>(typeof(object));
