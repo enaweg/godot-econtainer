@@ -53,6 +53,49 @@ public partial class NodeRegistrationBuilderTest
         AssertObject(first).IsSame(second);
     }
 
+    [TestCase]
+    public void Build_WithDontDestroyOnLoad_ReparentsAlreadyParentedNodeUnderSceneRoot()
+    {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var holder = AutoFree(new Node())!;
+        tree.Root.AddChild(holder);
+        var node = new InjectableNode();
+        holder.AddChild(node);
+
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        var registrationBuilder = new NodeRegistrationBuilder(node).DontDestroyOnLoad().As(typeof(InjectableNode));
+        builder.Register(registrationBuilder);
+
+        using var resolver = builder.Build();
+        resolver.Resolve<InjectableNode>();
+
+        AssertObject(node.GetParent()).IsSame(tree.Root);
+
+        tree.Root.RemoveChild(node);
+        node.Free();
+    }
+
+    [TestCase]
+    public void Build_WithDontDestroyOnLoad_AddsUnparentedNodeUnderSceneRoot()
+    {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var node = new InjectableNode();
+
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        var registrationBuilder = new NodeRegistrationBuilder(node).DontDestroyOnLoad().As(typeof(InjectableNode));
+        builder.Register(registrationBuilder);
+
+        using var resolver = builder.Build();
+        resolver.Resolve<InjectableNode>();
+
+        AssertObject(node.GetParent()).IsSame(tree.Root);
+
+        tree.Root.RemoveChild(node);
+        node.Free();
+    }
+
     // The scene/prefab/name-based providers are declared but intentionally stubbed out
     // upstream (see NodeRegistrationBuilder.Build()) - these tests pin that current state.
     [TestCase]

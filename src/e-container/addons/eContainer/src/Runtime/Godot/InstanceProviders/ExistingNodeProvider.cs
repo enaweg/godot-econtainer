@@ -32,7 +32,17 @@ sealed class ExistingNodeProvider : IInstanceProvider
 		{
 			if (instance is Node node)
 			{
-				node.GetTree().Root.AddChild(node);
+				Node root = ((SceneTree)Engine.GetMainLoop()).Root;
+				if (node.GetParent() != null)
+				{
+					// AddChild() fails (and logs an error) for a node that already has a
+					// parent; Reparent() is the API meant for moving it instead.
+					node.Reparent(root);
+				}
+				else
+				{
+					root.AddChild(node);
+				}
 			}
 			else
 			{
