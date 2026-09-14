@@ -28,6 +28,11 @@ jobs:
         shell: bash
         run: echo "GODOT_BIN=$GODOT" >> "$GITHUB_ENV"
 
+      - name: Install Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb
+
       - name: Restore NuGet packages
         working-directory: src/e-container
         run: dotnet restore gContainer.sln
@@ -40,3 +45,9 @@ jobs:
         working-directory: src/e-container
         run: |
           "$GODOT_BIN" --path . --editor --headless --quit-after 2000
+
+      - name: Run gdUnit4 tests
+        working-directory: src/e-container
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
+            dotnet test gContainer.sln --configuration Debug --no-build --settings .runsettings --verbosity normal -m:1

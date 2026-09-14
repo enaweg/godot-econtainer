@@ -41,6 +41,7 @@ public partial struct ParentReference
 		Type = type;
 		typeName = type.FullName;
 		Object = null;
+		OwnerType = ownerType;
 	}
 
 	private void OnBeforeSerialize()
