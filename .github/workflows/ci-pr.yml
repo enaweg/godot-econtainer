@@ -40,3 +40,9 @@ jobs:
         working-directory: src/e-container
         run: |
           "$GODOT_BIN" --path . --editor --headless --quit-after 2000
+
+      - name: Run gdUnit4 tests
+        working-directory: src/e-container
+        run: |
+          chmod +x addons/gdUnit4/runtest.sh
+          addons/gdUnit4/runtest.sh -a res://test -c --ignoreHeadlessMode
