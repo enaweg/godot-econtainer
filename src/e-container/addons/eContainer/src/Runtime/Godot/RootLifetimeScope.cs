@@ -31,8 +31,11 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 			Root = null;
 		}
 
-		treeRoot.ChildEnteredTree -= OnChildEnteredTreeRoot;
-		treeRoot = null;
+		if (treeRoot != null)
+		{
+			treeRoot.ChildEnteredTree -= OnChildEnteredTreeRoot;
+			treeRoot = null;
+		}
 	}
 
 	static readonly List<LifetimeScope> WaitingList = new List<LifetimeScope>();
