@@ -31,7 +31,7 @@ project/assembly_name="gContainer"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/eContainer/plugin.cfg", "res://addons/ePlugin/plugin.cfg")
+enabled=PackedStringArray("res://addons/eContainer/plugin.cfg", "res://addons/ePlugin/plugin.cfg", "res://addons/gdUnit4/plugin.cfg")
 
 [physics]
 
