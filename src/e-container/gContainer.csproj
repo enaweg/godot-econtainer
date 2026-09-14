@@ -14,6 +14,7 @@
     </PackageReference>
     <PackageReference Include="gdUnit4.api" Version="5.1.0-rc5" />
     <PackageReference Include="gdUnit4.test.adapter" Version="3.1.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="VContainer.SourceGenerator" Version="1.19.0" />
     <PackageReference Include="VContainer.Standalone" Version="1.19.0" />
   </ItemGroup>
