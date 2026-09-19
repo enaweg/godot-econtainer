@@ -48,8 +48,10 @@ public partial class ParentReferenceEditorProperty : EditorProperty
 
     private void HandleOptionItemSelected(long index)
     {
-        GetEditedObject().Set(GetEditedProperty(), names[index]);
-        GD.Print(GetEditedObject().Get(GetEditedProperty()));
+        // EmitChanged routes the edit through the inspector, so it lands in the undo/redo
+        // history and marks the scene dirty. Assigning with GetEditedObject().Set() wrote the
+        // value straight onto the node and bypassed both.
+        EmitChanged(GetEditedProperty(), names[index]);
     }
 }
 #endif

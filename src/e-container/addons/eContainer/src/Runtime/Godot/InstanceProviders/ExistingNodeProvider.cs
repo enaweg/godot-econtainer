@@ -10,46 +10,52 @@ sealed class ExistingNodeProvider : IInstanceProvider
 	readonly object instance;
 	readonly IInjector injector;
 	readonly IReadOnlyList<IInjectParameter> customParameters;
-	readonly bool isRootObject;
+	readonly NodeDestination destination;
 
 	public ExistingNodeProvider(
 		object instance,
 		IInjector injector,
 		IReadOnlyList<IInjectParameter> customParameters,
-		bool isRootObject = false)
+		NodeDestination destination = default)
 	{
 		this.instance = instance;
 		this.customParameters = customParameters;
 		this.injector = injector;
-		this.isRootObject = isRootObject;
+		this.destination = destination;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public object SpawnInstance(IObjectResolver resolver)
 	{
 		injector.Inject(instance, resolver, customParameters);
-		if (isRootObject)
+
+		// An explicit UnderTransform() target wins over DontDestroyOnLoad()'s scene root.
+		Node target = destination.GetParent(resolver);
+		if (target == null && destination.IsRootObject)
 		{
-			if (instance is Node node)
+			target = ((SceneTree)Engine.GetMainLoop()).Root;
+		}
+
+		if (target != null)
+		{
+			if (instance is not Node node)
 			{
-				Node root = ((SceneTree)Engine.GetMainLoop()).Root;
-				if (node.GetParent() != null)
-				{
-					// AddChild() fails (and logs an error) for a node that already has a
-					// parent; Reparent() is the API meant for moving it instead.
-					node.Reparent(root);
-				}
-				else
-				{
-					root.AddChild(node);
-				}
+				throw new VContainerException(instance.GetType(),
+					$"Cannot place {instance.GetType().Name} in the scene tree. It is not a Node");
+			}
+
+			if (node.GetParent() != null)
+			{
+				// AddChild() fails (and logs an error) for a node that already has a
+				// parent; Reparent() is the API meant for moving it instead.
+				node.Reparent(target);
 			}
 			else
 			{
-				throw new VContainerException(instance.GetType(),
-					$"Cannot apply `DontDestroyOnLoad`. {instance.GetType().Name} is not a Node");
+				target.AddChild(node);
 			}
 		}
+
 		return instance;
 	}
 }

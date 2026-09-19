@@ -6,7 +6,10 @@ using static GdUnit4.Assertions;
 
 namespace Enaweg.Container.Tests.Godot;
 
+// Requires the Godot runtime: without an exception handler the loop items now report through
+// GD.PrintErr, and calling Godot APIs outside the runtime crashes the test host.
 [TestSuite]
+[RequireGodotRuntime]
 public class TickableLoopItemTest
 {
     sealed class RecordingTickable : ITickable
@@ -68,33 +71,32 @@ public class TickableLoopItemTest
         AssertArray(after.Frames).ContainsExactly(3L);
     }
 
+    // Without a handler the exception must still not escape: GodotFrameProvider.Run()
+    // deregisters any work item that throws, which would stop every tickable in the scope.
     [TestCase]
-    public void MoveNext_ExceptionWithoutHandler_Rethrows()
+    public void MoveNext_ExceptionWithoutHandler_KeepsTickingAndStaysRegistered()
     {
-        var loopItem = new TickableLoopItem(new ITickable[] { new ThrowingTickable() }, null!);
+        var after = new RecordingTickable();
+        var loopItem = new TickableLoopItem(new ITickable[] { new ThrowingTickable(), after }, null!);
 
-        AssertThrown(() => loopItem.MoveNext(1)).IsInstanceOf<InvalidOperationException>();
+        var result = loopItem.MoveNext(1);
+
+        AssertBool(result).IsTrue();
+        AssertArray(after.Frames).ContainsExactly(1L);
     }
 
     [TestCase]
-    public void FixedTickableLoopItem_MoveNext_TicksAllEntries()
+    public void FixedTickableLoopItem_MoveNext_TicksAllEntries_AndStopsAfterDispose()
     {
         var a = new RecordingPhysicsTickable();
         var loopItem = new FixedTickableLoopItem(new IPhysicsTickable[] { a }, null!);
 
-        var result = loopItem.MoveNext(9);
-
-        AssertBool(result).IsTrue();
+        AssertBool(loopItem.MoveNext(9)).IsTrue();
         AssertArray(a.Frames).ContainsExactly(9L);
-    }
-
-    [TestCase]
-    public void FixedTickableLoopItem_MoveNext_AfterDispose_ReturnsFalse()
-    {
-        var loopItem = new FixedTickableLoopItem(Array.Empty<IPhysicsTickable>(), null!);
 
         loopItem.Dispose();
 
-        AssertBool(loopItem.MoveNext(1)).IsFalse();
+        AssertBool(loopItem.MoveNext(10)).IsFalse();
+        AssertArray(a.Frames).ContainsExactly(9L);
     }
 }

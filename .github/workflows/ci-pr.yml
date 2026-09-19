@@ -4,7 +4,7 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -24,7 +24,7 @@ jobs:
           version: 4.7.2
           use-dotnet: true
 
-      - name: Configure Godot executable
+      - name: Configure Godot test executable
         shell: bash
         run: echo "GODOT_BIN=$GODOT" >> "$GITHUB_ENV"
 
@@ -33,20 +33,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes xvfb
 
-      - name: Restore NuGet packages
-        working-directory: src/e-container
-        run: dotnet restore gContainer.sln
-
       - name: Build
         working-directory: src/e-container
-        run: dotnet build gContainer.sln --configuration Debug --no-restore
+        run: dotnet build gContainer.sln --configuration Debug
 
       - name: Rebuild Godot project cache
         working-directory: src/e-container
         run: |
           "$GODOT_BIN" --path . --editor --headless --quit-after 2000
 
-      - name: Run gdUnit4 tests
+      - name: Run tests
         working-directory: src/e-container
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \

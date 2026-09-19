@@ -21,6 +21,7 @@ public partial class LifetimeScopeTest
         }
 
         public void SetAutoInject(Node[] nodes) => autoInjectGameObjects = nodes;
+        public void SetAutoRun(bool value) => autoRun = value;
     }
 
     sealed partial class FindParentScope : LifetimeScope
@@ -34,12 +35,9 @@ public partial class LifetimeScopeTest
     {
     }
 
-    sealed partial class InjectableNode : Node
+    // Deliberately never added to the tree, so looking it up always misses.
+    sealed partial class AbsentScope : LifetimeScope
     {
-        public string? Received;
-
-        [Inject]
-        public void Construct(string value) => Received = value;
     }
 
     sealed class RecordingInstaller : IInstaller
@@ -63,18 +61,34 @@ public partial class LifetimeScopeTest
         Root.AddChild(scope);
 
         AssertObject(scope.Parent).IsSame(Root);
+        AssertBool(scope.IsRoot).IsFalse();
         AssertObject(scope.Container.Resolve<string>()).IsEqual("configured");
         AssertObject(scope.Container.Resolve<LifetimeScope>()).IsSame(scope);
     }
 
     [TestCase]
-    public void IsRoot_IsFalseForNonRootScope()
+    public void Build_WithAutoRunDisabled_DefersContainerCreationUntilBuild()
     {
         var scope = AutoFree(new ConfiguringScope())!;
+        scope.SetAutoRun(false);
 
         Root.AddChild(scope);
 
-        AssertBool(scope.IsRoot).IsFalse();
+        AssertObject(scope.Container).IsNull();
+
+        scope.Build();
+
+        AssertObject(scope.Container).IsNotNull();
+        AssertObject(scope.Container.Resolve<string>()).IsEqual("configured");
+    }
+
+    [TestCase]
+    public void Create_AddsScopeUnderRoot_AndAppliesConfiguration()
+    {
+        var scope = AutoFree(LifetimeScope.Create(builder => builder.RegisterInstance("created")))!;
+
+        AssertObject(scope.Parent).IsSame(Root);
+        AssertObject(scope.Container.Resolve<string>()).IsEqual("created");
     }
 
     [TestCase]
@@ -103,6 +117,67 @@ public partial class LifetimeScopeTest
         AssertObject(child.Container.Resolve<RecordingInstaller>()).IsSame(installer);
     }
 
+    static PackedScene PackScene(Node root)
+    {
+        var scene = new PackedScene();
+        scene.Pack(root);
+        root.Free();
+        return scene;
+    }
+
+    [TestCase]
+    public void CreateChildFromPackedScene_WithScopeAsSceneRoot_AttachesAndInstalls()
+    {
+        var parent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(parent);
+        var scene = PackScene(new PackedChildScope());
+
+        var child = parent.CreateChildFromPackedScene<PackedChildScope>(
+            scene,
+            builder => builder.RegisterInstance(7));
+
+        AssertObject(child).IsNotNull();
+        AssertObject(child.GetParent()).IsSame(parent);
+        AssertObject(child.Parent).IsSame(parent);
+        AssertObject(child.Container.Resolve<string>()).IsEqual("packed");
+        AssertInt(child.Container.Resolve<int>()).IsEqual(7);
+    }
+
+    [TestCase]
+    public void CreateChildFromPackedScene_WithScopeUnderPlainRoot_AttachesScopeAndDropsWrapper()
+    {
+        var parent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(parent);
+
+        var wrapper = new Node();
+        var scope = new PackedChildScope();
+        wrapper.AddChild(scope);
+        scope.Owner = wrapper;
+        var scene = PackScene(wrapper);
+
+        var child = parent.CreateChildFromPackedScene<PackedChildScope>(scene);
+
+        AssertObject(child).IsNotNull();
+        // The plain wrapper root is discarded, not reparented along with the scope.
+        AssertObject(child.GetParent()).IsSame(parent);
+        AssertObject(child.Parent).IsSame(parent);
+        AssertObject(child.Container.Resolve<string>()).IsEqual("packed");
+    }
+
+    [TestCase]
+    public void CreateChildFromPackedScene_WithoutMatchingScope_ReturnsNullAndAddsNothing()
+    {
+        var parent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(parent);
+        var childCountBefore = parent.GetChildCount();
+        var scene = PackScene(new Node());
+
+        var child = parent.CreateChildFromPackedScene<PackedChildScope>(scene);
+
+        AssertObject(child).IsNull();
+        AssertInt(parent.GetChildCount()).IsEqual(childCountBefore);
+    }
+
     [TestCase]
     public void Build_UsesFindParentOverride_WhenParentReferenceObjectNotSet()
     {
@@ -126,6 +201,45 @@ public partial class LifetimeScopeTest
         Root.AddChild(scope);
 
         AssertObject(scope.Parent).IsSame(target);
+    }
+
+    [TestCase]
+    public void Find_WithExplicitSceneTree_LocatesScopeUnderRoot()
+    {
+        var target = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(target);
+
+        var found = LifetimeScope.Find<NamedTargetScope>(Root.GetTree());
+
+        AssertObject(found).IsSame(target);
+    }
+
+    // SceneTree.CurrentScene is null here, as it is while autoloads enter the tree ahead of the
+    // main scene and during change_scene_to_*(). Find() used to dereference it unguarded.
+    [TestCase]
+    public void Find_WithMissingType_ReturnsNullInsteadOfThrowing()
+    {
+        AssertObject(Root.GetTree().CurrentScene).IsNull();
+
+        AssertObject(LifetimeScope.Find<AbsentScope>()).IsNull();
+        AssertObject(LifetimeScope.Find<AbsentScope>(Root.GetTree())).IsNull();
+    }
+
+    // The NRE above escaped _EnterTree, which only catches
+    // VContainerParentTypeReferenceNotFound, so the scope was silently dropped rather than
+    // queued. It should now land on the waiting list.
+    [TestCase]
+    public void Build_WithParentTypeNotInTreeYet_EnqueuesScopeOnTheWaitingList()
+    {
+        var waiter = AutoFree(new LifetimeScope())!;
+        waiter.ParentReference = ParentReference.Create<AbsentScope>(typeof(LifetimeScope));
+
+        Root.AddChild(waiter);
+
+        AssertBool(RootLifetimeScope.WaitingListContains(waiter)).IsTrue();
+
+        // Leave no dangling entry in the static list for later tests to trip over.
+        RootLifetimeScope.CancelReady(waiter);
     }
 
     [TestCase]
@@ -154,6 +268,28 @@ public partial class LifetimeScopeTest
         }
 
         AssertObject(scope.Parent).IsSame(customParent);
+    }
+
+    // EnqueueParent is an explicit, caller-scoped instruction, so it must beat a parent type
+    // declared on the scope. It used to be checked only after the declared-type lookup, which
+    // meant it was silently ignored for any scope with parentTypeName set.
+    [TestCase]
+    public void EnqueueParent_OverridesADeclaredParentType()
+    {
+        var declaredParent = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(declaredParent);
+        var overrideParent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(overrideParent);
+
+        LifetimeScope scope;
+        using (LifetimeScope.EnqueueParent(overrideParent))
+        {
+            scope = AutoFree(new LifetimeScope())!;
+            scope.ParentReference = ParentReference.Create<NamedTargetScope>(typeof(LifetimeScope));
+            Root.AddChild(scope);
+        }
+
+        AssertObject(scope.Parent).IsSame(overrideParent);
     }
 
     [TestCase]

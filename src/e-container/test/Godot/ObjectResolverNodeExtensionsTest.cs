@@ -10,14 +10,6 @@ namespace Enaweg.Container.Tests.Godot;
 [RequireGodotRuntime]
 public partial class ObjectResolverNodeExtensionsTest
 {
-    sealed partial class InjectableNode : Node
-    {
-        public string? Received;
-
-        [Inject]
-        public void Construct(string value) => Received = value;
-    }
-
     [TestCase]
     public void InjectNode_InjectsTargetAndDescendantsRecursively()
     {
@@ -36,6 +28,30 @@ public partial class ObjectResolverNodeExtensionsTest
         AssertObject(root.Received).IsEqual("payload");
         AssertObject(child.Received).IsEqual("payload");
         AssertObject(grandchild.Received).IsEqual("payload");
+    }
+
+    // A nested scope resolves its own subtree from its own container, so the parent resolver
+    // must stop at that boundary instead of injecting straight through it.
+    [TestCase]
+    public void InjectNode_StopsAtNestedLifetimeScopes()
+    {
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        using var resolver = builder.Build();
+
+        var root = AutoFree(new InjectableNode())!;
+        var sibling = new InjectableNode();
+        var nestedScope = new LifetimeScope();
+        var underNestedScope = new InjectableNode();
+        root.AddChild(sibling);
+        root.AddChild(nestedScope);
+        nestedScope.AddChild(underNestedScope);
+
+        resolver.InjectNode(root);
+
+        AssertObject(root.Received).IsEqual("payload");
+        AssertObject(sibling.Received).IsEqual("payload");
+        AssertObject(underNestedScope.Received).IsNull();
     }
 
     [TestCase]
@@ -65,5 +81,30 @@ public partial class ObjectResolverNodeExtensionsTest
 
         AssertObject(instance.GetParent()).IsSame(parent);
         AssertObject(instance.Received).IsEqual("payload");
+    }
+
+    // AddChild() runs _EnterTree/_Ready synchronously, so injecting after it left every
+    // injected member null in _Ready - the most likely place to use them.
+    [TestCase]
+    public void Instantiate_InjectsBeforeTheNodeEntersTheTree()
+    {
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        using var resolver = builder.Build();
+
+        var template = new ReadyRecordingNode();
+        var scene = new PackedScene();
+        scene.Pack(template);
+        template.Free();
+
+        // The parent has to be in the tree, otherwise AddChild() never triggers _Ready and the
+        // test would pass for the wrong reason.
+        var parent = AutoFree(new Node())!;
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(parent);
+
+        var instance = resolver.Instantiate<ReadyRecordingNode>(scene, parent);
+
+        AssertBool(instance.ReadyRan).IsTrue();
+        AssertObject(instance.ReceivedDuringReady).IsEqual("payload");
     }
 }

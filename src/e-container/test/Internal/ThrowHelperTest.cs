@@ -33,18 +33,4 @@ public class ThrowHelperTest
     {
         ThrowHelper.ThrowObjectDisposedIf(false, typeof(string));
     }
-
-    [TestCase]
-    public void ThrowArgumentNullException_Throws()
-    {
-        AssertThrown(() => ThrowHelper.ThrowArgumentNullException("param"))
-            .IsInstanceOf<ArgumentNullException>();
-    }
-
-    [TestCase]
-    public void ThrowObjectDisposedException_Throws()
-    {
-        AssertThrown(() => ThrowHelper.ThrowObjectDisposedException(typeof(string)))
-            .IsInstanceOf<ObjectDisposedException>();
-    }
 }

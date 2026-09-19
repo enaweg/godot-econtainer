@@ -11,33 +11,8 @@ namespace Enaweg.Container.Tests.Godot;
 [RequireGodotRuntime]
 public partial class NodeRegistrationBuilderTest
 {
-    sealed partial class InjectableNode : Node
-    {
-        public string? Received;
-
-        [Inject]
-        public void Construct(string value) => Received = value;
-    }
-
     [TestCase]
-    public void Build_WithExistingNodeInstance_InjectsAndReturnsSameNode()
-    {
-        var builder = new ContainerBuilder();
-        builder.RegisterInstance("payload");
-        var node = AutoFree(new InjectableNode())!;
-        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(node);
-        var registrationBuilder = new NodeRegistrationBuilder(node).As(typeof(InjectableNode));
-        builder.Register(registrationBuilder);
-
-        using var resolver = builder.Build();
-        var resolved = resolver.Resolve<InjectableNode>();
-
-        AssertObject(resolved).IsSame(node);
-        AssertObject(node.Received).IsEqual("payload");
-    }
-
-    [TestCase]
-    public void Build_WithExistingNodeInstance_IsSingleton()
+    public void Build_WithExistingNodeInstance_InjectsAndResolvesAsSingleton()
     {
         var builder = new ContainerBuilder();
         builder.RegisterInstance("payload");
@@ -50,7 +25,9 @@ public partial class NodeRegistrationBuilderTest
         var first = resolver.Resolve<InjectableNode>();
         var second = resolver.Resolve<InjectableNode>();
 
-        AssertObject(first).IsSame(second);
+        AssertObject(first).IsSame(node);
+        AssertObject(second).IsSame(first);
+        AssertObject(node.Received).IsEqual("payload");
     }
 
     [TestCase]
@@ -96,30 +73,59 @@ public partial class NodeRegistrationBuilderTest
         node.Free();
     }
 
-    // The scene/prefab/name-based providers are declared but intentionally stubbed out
-    // upstream (see NodeRegistrationBuilder.Build()) - these tests pin that current state.
     [TestCase]
-    public void Build_FromSceneTreeConstructor_IsNotImplemented()
+    public void Build_WithUnderTransform_PlacesNodeUnderTheGivenParent()
     {
         var tree = (SceneTree)Engine.GetMainLoop();
-        var registrationBuilder = new NodeRegistrationBuilder(tree, typeof(Node));
+        var holder = AutoFree(new Node())!;
+        tree.Root.AddChild(holder);
+        var node = new InjectableNode();
 
-        AssertThrown(() => registrationBuilder.Build()).IsInstanceOf<NotImplementedException>();
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        builder.Register(new NodeRegistrationBuilder(node).UnderTransform(holder).As(typeof(InjectableNode)));
+
+        using var resolver = builder.Build();
+        resolver.Resolve<InjectableNode>();
+
+        // Freed together with holder, which AutoFree owns.
+        AssertObject(node.GetParent()).IsSame(holder);
     }
 
     [TestCase]
-    public void Build_FromPackedSceneFinderConstructor_IsNotImplemented()
+    public void Build_WithUnderTransform_ReparentsAnAlreadyParentedNode()
     {
-        var registrationBuilder = new NodeRegistrationBuilder(_ => new Node(), typeof(Node), Lifetime.Singleton);
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var origin = AutoFree(new Node())!;
+        var holder = AutoFree(new Node())!;
+        tree.Root.AddChild(origin);
+        tree.Root.AddChild(holder);
+        var node = new InjectableNode();
+        origin.AddChild(node);
 
-        AssertThrown(() => registrationBuilder.Build()).IsInstanceOf<NotImplementedException>();
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        builder.Register(new NodeRegistrationBuilder(node).UnderTransform(holder).As(typeof(InjectableNode)));
+
+        using var resolver = builder.Build();
+        resolver.Resolve<InjectableNode>();
+
+        AssertObject(node.GetParent()).IsSame(holder);
     }
 
+    // The scene/prefab/name-based providers are declared but intentionally stubbed out
+    // upstream (see NodeRegistrationBuilder.Build()) - this pins that current state so
+    // implementing any of them is a deliberate change rather than a silent one.
     [TestCase]
-    public void Build_FromGameObjectNameConstructor_IsNotImplemented()
+    public void Build_FromUnimplementedProviderConstructors_Throws()
     {
-        var registrationBuilder = new NodeRegistrationBuilder("SomeName", typeof(Node), Lifetime.Singleton);
+        var tree = (SceneTree)Engine.GetMainLoop();
 
-        AssertThrown(() => registrationBuilder.Build()).IsInstanceOf<NotImplementedException>();
+        AssertThrown(() => new NodeRegistrationBuilder(tree, typeof(Node)).Build())
+            .IsInstanceOf<NotImplementedException>();
+        AssertThrown(() => new NodeRegistrationBuilder(_ => new Node(), typeof(Node), Lifetime.Singleton).Build())
+            .IsInstanceOf<NotImplementedException>();
+        AssertThrown(() => new NodeRegistrationBuilder("SomeName", typeof(Node), Lifetime.Singleton).Build())
+            .IsInstanceOf<NotImplementedException>();
     }
 }

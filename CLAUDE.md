@@ -31,12 +31,18 @@ standalone libraries.
   `GodotTargetPlatform=android`).
 - Opening `src/e-container/project.godot` in the Godot 4.7 editor will trigger a dotnet build automatically and is
   the normal way to exercise the plugins (they register/unregister themselves via the editor plugin lifecycle).
-- There is currently no automated test project in the repo (no `*Test*.csproj`). `IDotnetCli.RunTests()` exists as
-  a hook in the `ePlugin` CLI abstraction but has no implementation/target wired up yet.
-- CI (`.github/workflows/ci-pr.yml`) builds the Godot project and refreshes its headless editor cache for pull
-  requests. Release CI (`.github/workflows/ci-release.yml`) performs the same validation on `v*` tag pushes, stamps
-  the version into `addons/eContainer/plugin.cfg`, zips `addons/eContainer` into a release artifact, and drafts a
-  GitHub release. There is no automated test project in the repository.
+- Tests live in `src/e-container/test/` inside the same `gContainer.csproj` and use gdUnit4 via the .NET test
+  adapter. Run them with `dotnet test src/e-container/gContainer.sln --settings src/e-container/.runsettings`; a
+  `GODOT_BIN` environment variable pointing at a Godot binary is required. On a stale or missing `.godot/` cache the
+  `eContainer` autoload is not instantiated, `LifetimeScope.Root` stays null, and every `LifetimeScopeTest` case
+  fails with an NRE — run `"$GODOT_BIN" --path src/e-container --editor --headless --quit-after 2000` first, which
+  is exactly what CI does before its test step.
+- CI (`.github/workflows/ci-pr.yml`) builds the solution, refreshes the headless Godot editor cache, and runs the
+  gdUnit4 suite under `xvfb-run` for pull requests. Release CI (`.github/workflows/ci-release.yml`) performs the
+  same build-and-test validation on `v*` tag pushes, stamps the version into `addons/eContainer/plugin.cfg`,
+  renames `addons/eContainer/src` to the hidden `.src` used for distribution, zips `addons/eContainer` (with the
+  bundled VContainer `.nupkg` files in `.libs`) into a release artifact, verifies the archive's contents, and
+  drafts a GitHub release.
 
 ## Architecture
 
@@ -63,8 +69,10 @@ instead of imperatively wiring things up in `_EnablePlugin`/`_DisablePlugin`:
 ### `eContainer` — the VContainer port (`addons/eContainer/`)
 
 - `EContainerPlugin` (editor-only) declares its `ePlugin` recipe: install the vendored `VContainer.Standalone` /
-  `VContainer.SourceGenerator` NuGet packages from `.libs/` (local `.nupkg` files, not a public feed) and register
-  the `eContainer.tscn` autoload.
+  `VContainer.SourceGenerator` NuGet packages (1.19.0) from `.libs/` (local `.nupkg` files, not a public feed), show
+  the `.src` source directory, and register the `eContainer.tscn` autoload. In the repo the sources are checked in
+  as `src/` (the shown state); the release workflow hides them as `.src` so a freshly extracted, disabled plugin is
+  not compiled into the consuming project.
 - Runtime code lives in `src/Runtime/` and is split into:
   - `Godot/` — the Godot-specific adaptation layer of VContainer, most importantly `LifetimeScope`
     (`src/Runtime/Godot/LifetimeScope.cs`), the DI scope node ported from VContainer's Unity `MonoBehaviour` scope

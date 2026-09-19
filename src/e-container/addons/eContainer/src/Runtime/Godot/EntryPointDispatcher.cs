@@ -15,9 +15,11 @@ public sealed class EntryPointDispatcher(IObjectResolver container) : IDisposabl
 	public void Dispatch()
 	{
 		EntryPointExceptionHandler exceptionHandler = container.ResolveOrDefault<EntryPointExceptionHandler>();
-		// Tempary workaround
-		GodotFrameProvider.ExceptionHandler = exceptionHandler;
-		
+		// This scope's handler is passed to the loop items it creates below. It deliberately
+		// does not touch GodotFrameProvider.ExceptionHandler: that is a single process-wide
+		// slot, so assigning it here made the most recently built scope's handler win for
+		// every other scope as well.
+
 		var initializables = container.Resolve<ContainerLocal<IReadOnlyList<IInitializable>>>().Value;
 		for (var i = 0; i < initializables.Count; i++)
 		{

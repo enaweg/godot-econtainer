@@ -5,11 +5,11 @@ using static GdUnit4.Assertions;
 
 namespace Enaweg.Container.Tests.Godot;
 
-// GodotFrameProvider.Process/.PhysicsProcess are process-wide static singletons and nothing in
-// the project ever drives them automatically (FrameProviderDispatcher, the only thing that
-// would call .Run() every engine frame, is never instantiated anywhere), so these tests fully
-// control when Run() executes. Each test still deregisters what it added (by returning false
-// from MoveNext) so leftover work items don't pile up across the suite.
+// GodotFrameProvider.Process/.PhysicsProcess are process-wide static singletons that the
+// `eContainer` autoload's FrameProviderDispatcher drives every engine frame. A test body runs
+// synchronously, so no engine frame lands inside one and the manual Run() calls below are the
+// only ticks a test observes - but each test must still deregister what it added (by returning
+// false from MoveNext), or the dispatcher keeps ticking it between test cases.
 [TestSuite]
 [RequireGodotRuntime]
 public class GodotFrameProviderTest

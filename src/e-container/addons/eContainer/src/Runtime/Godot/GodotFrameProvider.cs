@@ -29,6 +29,12 @@ public class GodotFrameProvider : FrameProvider
 {
 	public static readonly GodotFrameProvider Process = new GodotFrameProvider(PlayerLoopTiming.Process);
 	public static readonly GodotFrameProvider PhysicsProcess = new GodotFrameProvider(PlayerLoopTiming.PhysicsProcess);
+	/// <summary>
+	/// Process-wide fallback for work items that let an exception escape MoveNext(). Entry
+	/// point tickables do not rely on it - they carry their own scope's handler - so this is
+	/// only for work items registered directly against a frame provider. Assign it once at
+	/// startup if you want them reported somewhere.
+	/// </summary>
 	public static EntryPointExceptionHandler? ExceptionHandler;
 		
 	FreeListCore<IFrameRunnerWorkItem> list;

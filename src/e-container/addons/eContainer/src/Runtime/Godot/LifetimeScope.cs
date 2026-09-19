@@ -80,6 +80,11 @@ public partial class LifetimeScope : Node, IDisposable
 
 	static LifetimeScope Find(Type type, SceneTree scene)
 	{
+		if (Root == null)
+		{
+			return null;
+		}
+
 		if (type == typeof(RootLifetimeScope))
 		{
 			return Root;
@@ -94,13 +99,21 @@ public partial class LifetimeScope : Node, IDisposable
 			}
 		}
 
-		Array<Node> childArray = scene.CurrentScene.GetChildren();
-		if (scene.CurrentScene is LifetimeScope lifetimeScope && lifetimeScope.GetType() == type)
+		// CurrentScene is null while autoloads enter the tree before the main scene has been
+		// instantiated, and again while change_scene_to_*() swaps scenes. There is simply no
+		// scene to search then - "not found" is the answer, not a crash.
+		Node currentScene = scene?.CurrentScene;
+		if (currentScene == null)
+		{
+			return null;
+		}
+
+		if (currentScene is LifetimeScope lifetimeScope && lifetimeScope.GetType() == type)
 		{
 			return lifetimeScope;
 		}
 
-		foreach (Node child in childArray)
+		foreach (Node child in currentScene.GetChildren())
 		{
 			if (child.GetType() == type)
 			{
@@ -111,7 +124,7 @@ public partial class LifetimeScope : Node, IDisposable
 		return null;
 	}
 
-	static LifetimeScope Find(Type type) => Find(type, Root.GetTree());
+	static LifetimeScope Find(Type type) => Root == null ? null : Find(type, Root.GetTree());
 	protected static RootLifetimeScope Root { get; set; }
 	public IObjectResolver Container { get; private set; }
 	public LifetimeScope Parent { get; private set; }
@@ -222,6 +235,18 @@ public partial class LifetimeScope : Node, IDisposable
 		AutoInjectAll();
 	}
 
+	// Called by RootLifetimeScope when a scope this one was queued behind may have become
+	// available. Mirrors _EnterTree: resolve the parent, and build only when autoRun is set.
+	// Throws VContainerParentTypeReferenceNotFound if the parent still is not reachable.
+	internal void NotifyParentAvailable()
+	{
+		Parent ??= GetRuntimeParent();
+		if (autoRun)
+		{
+			Build();
+		}
+	}
+
 
 	public TScope CreateChild<TScope>(IInstaller installer = null) where TScope : LifetimeScope, new()
 	{
@@ -247,10 +272,15 @@ public partial class LifetimeScope : Node, IDisposable
 	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, IInstaller installer = null) where TScope : LifetimeScope
 	{
 		Node sceneNode = scene.Instantiate();
-		var child = sceneNode.GetChildren().FirstOrDefault() as TScope;
+
+		// The scope is normally the scene's root - the direct analogue of VContainer's
+		// prefab-with-a-LifetimeScope-component - but scenes that wrap it in a plain root
+		// node are tolerated too.
+		TScope child = sceneNode as TScope ?? sceneNode.GetChildren().OfType<TScope>().FirstOrDefault();
 		if (child == null)
 		{
 			GD.PushWarning($"PackedScene {scene.ResourcePath} does not contain a {typeof(TScope).Name}.");
+			sceneNode.Free();
 			return null;
 		}
 
@@ -259,6 +289,16 @@ public partial class LifetimeScope : Node, IDisposable
 			child.localExtraInstallers.Add(installer);
 		}
 
+		// AddChild() fails on a node that still has a parent, so detach the scope from the
+		// instantiated scene first and free the wrapper that is left behind.
+		if (child != sceneNode)
+		{
+			sceneNode.RemoveChild(child);
+			sceneNode.Free();
+		}
+
+		// Must be assigned before the node enters the tree: _EnterTree() resolves the parent
+		// scope and builds the container.
 		child.ParentReference.Object = this;
 		AddChild(child);
 		return child;
@@ -310,6 +350,17 @@ public partial class LifetimeScope : Node, IDisposable
 			return implParent;
 		}
 
+		// An EnqueueParent() override is an explicit, caller-scoped instruction, so it wins
+		// over a parent type declared in the scene. Checking it after the type lookup below
+		// meant the override was silently ignored for any scope with parentTypeName set.
+		lock (SyncRoot)
+		{
+			if (GlobalOverrideParents.Count > 0)
+			{
+				return GlobalOverrideParents.Peek();
+			}
+		}
+
 		// Find in scene via type
 		if (ParentReference.Type != null && ParentReference.Type != GetType())
 		{
@@ -317,14 +368,6 @@ public partial class LifetimeScope : Node, IDisposable
 				return foundScope;
 
 			throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
-		}
-
-		lock (SyncRoot)
-		{
-			if (GlobalOverrideParents.Count > 0)
-			{
-				return GlobalOverrideParents.Peek();
-			}
 		}
 
 		if (ParentReference.Type == null)

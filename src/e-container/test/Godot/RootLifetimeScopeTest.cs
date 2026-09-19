@@ -1,6 +1,7 @@
 using Enaweg.Container.Godot;
 using Godot;
 using GdUnit4;
+using VContainer;
 using static GdUnit4.Assertions;
 
 namespace Enaweg.Container.Tests.Godot;
@@ -13,7 +14,18 @@ public partial class RootLifetimeScopeTest
 {
     sealed partial class OtherTargetScope : LifetimeScope
     {
+        protected override void Configure(IContainerBuilder builder)
+        {
+            builder.RegisterInstance("other-target");
+        }
     }
+
+    // Never added to the tree, so a scope declaring it as parent stays queued.
+    sealed partial class NeverPresentScope : LifetimeScope
+    {
+    }
+
+    static RootLifetimeScope Root => (RootLifetimeScope)LifetimeScope.Find<RootLifetimeScope>()!;
 
     [TestCase]
     public void LiveAutoload_IsTheSingletonRoot()
@@ -59,11 +71,15 @@ public partial class RootLifetimeScopeTest
     [TestCase]
     public void ReadyWaitingChildren_FlushesOnlyWaitersMatchingAwakenParentType()
     {
+        // The parent must be a built scope: waking a waiter now builds it against
+        // awakenParent.Container.
+        var awakenParent = AutoFree(new OtherTargetScope())!;
+        Root.AddChild(awakenParent);
+
         var matchingWaiter = AutoFree(new LifetimeScope())!;
         matchingWaiter.ParentReference = ParentReference.Create<OtherTargetScope>(typeof(LifetimeScope));
         var otherWaiter = AutoFree(new LifetimeScope())!;
-        otherWaiter.ParentReference = ParentReference.Create<RootLifetimeScope>(typeof(LifetimeScope));
-        var awakenParent = AutoFree(new OtherTargetScope())!;
+        otherWaiter.ParentReference = ParentReference.Create<NeverPresentScope>(typeof(LifetimeScope));
 
         RootLifetimeScope.EnqueueReady(matchingWaiter);
         RootLifetimeScope.EnqueueReady(otherWaiter);
@@ -80,11 +96,61 @@ public partial class RootLifetimeScopeTest
         RootLifetimeScope.CancelReady(otherWaiter);
     }
 
+    // End to end: a scope whose declared parent is not in the tree yet queues up, and becomes a
+    // working scope once that parent arrives. This is the whole point of the waiting list, and
+    // nothing asserted it before - the flush only ever called RequestReady(), which re-runs
+    // _Ready on tree re-entry and so never built anything.
     [TestCase]
-    public void ReadyWaitingChildren_WithEmptyList_DoesNothing()
+    public void QueuedScope_BuildsOnceItsDeclaredParentEntersTheTree()
     {
-        var awakenParent = AutoFree(new OtherTargetScope())!;
+        var waiter = AutoFree(new LifetimeScope())!;
+        waiter.ParentReference = ParentReference.Create<OtherTargetScope>(typeof(LifetimeScope));
+        Root.AddChild(waiter);
 
-        RootLifetimeScope.ReadyWaitingChildren(awakenParent);
+        AssertBool(RootLifetimeScope.WaitingListContains(waiter)).IsTrue();
+        AssertObject(waiter.Container).IsNull();
+
+        var lateParent = AutoFree(new OtherTargetScope())!;
+        Root.AddChild(lateParent);
+
+        AssertBool(RootLifetimeScope.WaitingListContains(waiter)).IsFalse();
+        AssertObject(waiter.Parent).IsSame(lateParent);
+        AssertObject(waiter.Container).IsNotNull();
+        AssertObject(waiter.Container.Resolve<string>()).IsEqual("other-target");
+    }
+
+    // The scene-change path: a node entering the tree under the scene root retries the queue.
+    // Adding an unrelated node exercises the retry on its own, without the ReadyWaitingChildren
+    // call that a parent scope's own Build() would also trigger.
+    [TestCase]
+    public void NodeEnteringSceneRoot_RetriesQueuedScopes()
+    {
+        var parent = AutoFree(new OtherTargetScope())!;
+        Root.AddChild(parent);
+
+        var waiter = AutoFree(new LifetimeScope())!;
+        waiter.ParentReference = ParentReference.Create<OtherTargetScope>(typeof(LifetimeScope));
+        RootLifetimeScope.EnqueueReady(waiter);
+
+        var unrelated = AutoFree(new Node())!;
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(unrelated);
+
+        AssertBool(RootLifetimeScope.WaitingListContains(waiter)).IsFalse();
+        AssertObject(waiter.Container).IsNotNull();
+    }
+
+    [TestCase]
+    public void RetryWaitingChildren_KeepsScopesWhoseParentIsStillMissing()
+    {
+        var waiter = AutoFree(new LifetimeScope())!;
+        waiter.ParentReference = ParentReference.Create<NeverPresentScope>(typeof(LifetimeScope));
+        RootLifetimeScope.EnqueueReady(waiter);
+
+        RootLifetimeScope.RetryWaitingChildren();
+
+        AssertBool(RootLifetimeScope.WaitingListContains(waiter)).IsTrue();
+        AssertObject(waiter.Container).IsNull();
+
+        RootLifetimeScope.CancelReady(waiter);
     }
 }

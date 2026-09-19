@@ -21,14 +21,6 @@ struct NodeDestination
 
 		return null;
 	}
-
-	public void ApplyRootIfNeeded(Node node)
-	{
-		if (IsRootObject)
-		{
-			node.GetTree().Root.AddChild(node);
-		}
-	}
 }
 
 public sealed class NodeRegistrationBuilder : RegistrationBuilder
@@ -71,7 +63,7 @@ public sealed class NodeRegistrationBuilder : RegistrationBuilder
 		if (instance != null)
 		{
 			var injector = InjectorCache.GetOrBuild(ImplementationType);
-			provider = new ExistingNodeProvider(instance, injector, Parameters, destination.IsRootObject);
+			provider = new ExistingNodeProvider(instance, injector, Parameters, destination);
 		}
 		else if (scene != null)
 		{
