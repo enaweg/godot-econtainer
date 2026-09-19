@@ -4,10 +4,10 @@
 
 **[VContainer](https://github.com/hadashiA/VContainer) - Unity's fast DI container - ported to [Godot](https://godotengine.org/).**
 
-![CI](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-release.yml/badge.svg)
-![CI-PR](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-pr.yml/badge.svg)
+[![CI](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-pr.yml/badge.svg)](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-pr.yml)
 ![Godot 4.7.2](https://img.shields.io/badge/Godot-v4.7.2-202020?logo=godot-engine&logoColor=blue&color=darkgreen&labelColor=202020)
 ![Dotnet 8](https://img.shields.io/badge/8-02020?logo=dotnet&logoSize=auto&logoColor=purple&color=darkgreen&labelColor=E0E0E0)
+![VContainer 1.19.0](https://img.shields.io/badge/VContainer-v1.19.0-202020?color=darkgreen&labelColor=202020)
 
 **NOTE**: This project is experimental and still a work in progress.
 
@@ -15,12 +15,17 @@
 
 ## Requirements
 
-The current build configuration uses:
+The current CI-tested configuration uses:
 
 + [Godot 4.7.2 .NET](https://godotengine.org/download/archive/4.7.2-stable/)
 + [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 The project targets `net8.0`. Android builds target `net9.0`.
+
+eContainer bundles **[VContainer](https://github.com/hadashiA/VContainer) 1.19.0** - the `VContainer.Standalone` and
+`VContainer.SourceGenerator` packages at that version ship inside the release archive under
+`addons/eContainer/.libs` and are installed into your project automatically. VContainer is MIT licensed by
+[hadashiA](https://github.com/hadashiA).
 
 ## Installation
 
@@ -31,9 +36,13 @@ The project targets `net8.0`. Android builds target `net9.0`.
 3. Open the project in the Godot .NET editor and enable **ePlugin** under **Project > Project Settings > Plugins**.
 4. Enable **eContainer**.
 
-eContainer depends on ePlugin. When it is enabled, ePlugin adds the bundled
-`VContainer.Standalone` and `VContainer.SourceGenerator` packages to the Godot project, registers their local
-package source in `nuget.config`, and adds the `eContainer` autoload. No manual `dotnet add package` step is needed.
+eContainer depends on ePlugin. When it is enabled, ePlugin adds the bundled VContainer 1.19.0 packages to the Godot
+project, registers their local package source in `nuget.config`, adds the `eContainer` autoload, and un-hides the
+plugin's runtime source directory. No manual `dotnet add package` step is needed.
+
+The release archive ships that source directory hidden as `addons/eContainer/.src`, so a freshly extracted, disabled
+plugin does not get compiled into your project. Enabling the plugin renames it to `src`; disabling it hides the
+directory again.
 
 ## Features
 
@@ -95,13 +104,32 @@ dotnet nuget add source "$(pwd)/src/e-container/addons/eContainer/.libs" --name 
 dotnet build src/e-container/gContainer.sln --configuration Debug
 ```
 
-The NuGet source setup is required on a clean checkout because the VContainer packages are bundled in the repository
-under `src/e-container/addons/eContainer/.libs` rather than published to nuget.org.
+The NuGet source setup is required on a clean checkout because the VContainer 1.19.0 packages are bundled in the
+repository under `src/e-container/addons/eContainer/.libs` rather than published to nuget.org.
 
 Opening `src/e-container/project.godot` in the Godot 4.7.2 .NET editor also triggers a build automatically and is the
-normal way to exercise the plugins. Pull requests run the same .NET build followed by a headless Godot editor cache
-refresh. Pushing a `v*` tag runs that validation before stamping the plugin version, creating the release archive, and
-drafting the GitHub release. There is currently no automated test project in this repository.
+normal way to exercise the plugins.
+
+### Tests
+
+Tests live in `src/e-container/test/` and run on [gdUnit4](https://github.com/MikeSchulze/gdUnit4) through the .NET
+test adapter, so they need a Godot binary:
+
+```bash
+export GODOT_BIN=/path/to/godot
+"$GODOT_BIN" --path src/e-container --editor --headless --quit-after 2000
+dotnet test src/e-container/gContainer.sln --configuration Debug --settings src/e-container/.runsettings
+```
+
+The editor cache refresh is not optional: without it the `eContainer` autoload is never instantiated and the
+`LifetimeScope` tests fail with null-reference errors.
+
+### Release
+
+Both pull requests and `v*` tag pushes build the solution, refresh the headless Godot editor cache, and run the full
+gdUnit4 test suite. A tag push additionally stamps the tag's version into `addons/eContainer/plugin.cfg`, hides the
+runtime sources as `.src`, zips `addons/eContainer` (including the bundled VContainer packages in `.libs`) into
+`eContainer-v<version>.zip`, and drafts the GitHub release with a generated changelog.
 
 ### Project layout
 
