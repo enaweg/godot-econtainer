@@ -73,38 +73,54 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 
 		foreach (LifetimeScope waitingScope in buffer)
 		{
-			waitingScope.RequestReady();
+			Wake(waitingScope);
+		}
+	}
+
+	/// <summary>
+	/// Retries every queued scope, re-queueing the ones whose parent still is not reachable.
+	/// </summary>
+	internal static void RetryWaitingChildren()
+	{
+		if (WaitingList.Count <= 0)
+			return;
+
+		foreach (LifetimeScope waitingScope in WaitingList.ToArray())
+		{
+			// Remove first: waking a scope builds it, and Build() re-enters
+			// ReadyWaitingChildren, which must not see this scope again.
+			WaitingList.Remove(waitingScope);
+			Wake(waitingScope);
+		}
+	}
+
+	private static void Wake(LifetimeScope waitingScope)
+	{
+		try
+		{
+			waitingScope.NotifyParentAvailable();
+		}
+		catch (VContainerParentTypeReferenceNotFound)
+		{
+			// The parent still is not in the tree - keep waiting for it.
+			if (!WaitingList.Contains(waitingScope))
+			{
+				WaitingList.Add(waitingScope);
+			}
+		}
+		catch (System.Exception ex)
+		{
+			// One scope failing to configure must not abort the rest of the flush.
+			GD.PushError($"Failed to build queued LifetimeScope '{waitingScope.Name}': {ex}");
 		}
 	}
 
 	private static void OnChildEnteredTreeRoot(Node child)
 	{
-		// Ignore if child is not in the current scene
-		if (child != child.GetTree().CurrentScene)
-			return;
-
-		OnSceneChange(child);
-	}
-
-	private static void OnSceneChange(Node child)
-	{
-		if (WaitingList.Count <= 0)
-			return;
-
-		List<LifetimeScope> buffer = new();
-		for (int i = WaitingList.Count - 1; i >= 0; i--)
-		{
-			LifetimeScope waitingScope = WaitingList[i];
-			if (child.GetTree().CurrentScene != waitingScope.GetTree().CurrentScene)
-				continue;
-
-			WaitingList.RemoveAt(i);
-			buffer.Add(waitingScope);
-		}
-
-		foreach (LifetimeScope waitingScope in buffer)
-		{
-			waitingScope._Ready(); // Re-throw if parent not found
-		}
+		// Any node entering the tree under the scene root may be - or may contain - the parent
+		// a queued scope is blocked on, the root of a freshly loaded scene most of all. This is
+		// a no-op while nothing is queued, so retrying unconditionally costs nothing and does
+		// not depend on CurrentScene having been assigned by the time this signal fires.
+		RetryWaitingChildren();
 	}
 }

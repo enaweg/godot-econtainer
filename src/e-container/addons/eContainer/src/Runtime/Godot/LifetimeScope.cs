@@ -235,6 +235,18 @@ public partial class LifetimeScope : Node, IDisposable
 		AutoInjectAll();
 	}
 
+	// Called by RootLifetimeScope when a scope this one was queued behind may have become
+	// available. Mirrors _EnterTree: resolve the parent, and build only when autoRun is set.
+	// Throws VContainerParentTypeReferenceNotFound if the parent still is not reachable.
+	internal void NotifyParentAvailable()
+	{
+		Parent ??= GetRuntimeParent();
+		if (autoRun)
+		{
+			Build();
+		}
+	}
+
 
 	public TScope CreateChild<TScope>(IInstaller installer = null) where TScope : LifetimeScope, new()
 	{
