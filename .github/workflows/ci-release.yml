@@ -32,29 +32,36 @@ jobs:
           version: 4.7.2
           use-dotnet: true
 
-      - name: Configure Godot executable
+      - name: Configure Godot test executable
         shell: bash
         run: echo "GODOT_BIN=$GODOT" >> "$GITHUB_ENV"
 
-      - name: Restore NuGet packages
-        working-directory: src/e-container
-        run: dotnet restore gContainer.sln
+      - name: Install Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb
 
       - name: Build
         working-directory: src/e-container
-        run: dotnet build gContainer.sln --configuration Debug --no-restore
+        run: dotnet build gContainer.sln --configuration Debug
 
       - name: Rebuild Godot project cache
         working-directory: src/e-container
         run: |
           "$GODOT_BIN" --path . --editor --headless --quit-after 2000
 
+      - name: Run tests
+        working-directory: src/e-container
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
+            dotnet test gContainer.sln --configuration Debug --no-build --settings .runsettings --verbosity normal -m:1
+
       - name: Initialize version
         shell: bash
         run: |
           echo "VERSION=$( git describe --tags | sed -E 's/v([0-9\.]+)(:?.*)/\1/g' )" >> "$GITHUB_ENV"
 
-      - name: Set Version to plugin.ini
+      - name: Set Version to plugin.cfg
         shell: bash
         run: |
           sed -i "s/version=\".*\"/version=\"${{ env.VERSION }}\"/g" src/e-container/addons/eContainer/plugin.cfg
@@ -70,6 +77,23 @@ jobs:
           mkdir out/
           cd src/e-container
           zip -r ../../out/eContainer-v${VERSION}.zip addons/eContainer
+
+      - name: Verify artifact contents
+        shell: bash
+        run: |
+          unzip -l out/eContainer-v${VERSION}.zip
+          for required in \
+            addons/eContainer/plugin.cfg \
+            addons/eContainer/LICENSE \
+            addons/eContainer/EContainerPlugin.cs \
+            addons/eContainer/eContainer.tscn \
+            addons/eContainer/.src/Runtime/Godot/LifetimeScope.cs \
+            addons/eContainer/.libs/VContainer.Standalone.1.19.0.nupkg \
+            addons/eContainer/.libs/VContainer.SourceGenerator.1.19.0.nupkg
+          do
+            unzip -l "out/eContainer-v${VERSION}.zip" "$required" > /dev/null \
+              || { echo "::error::missing from release archive: $required"; exit 1; }
+          done
 
       - name: Build Changelog
         id: build_changelog
