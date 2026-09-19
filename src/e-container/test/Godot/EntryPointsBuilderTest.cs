@@ -5,32 +5,15 @@ using static GdUnit4.Assertions;
 
 namespace Enaweg.Container.Tests.Godot;
 
+// EntryPointsBuilder's instance API (Add/OnException) is a one-line forward to
+// ContainerBuilderNodeExtensions and is not constructed anywhere in the library, so it is
+// covered by ContainerBuilderNodeExtensionsTest instead. What is unique here is the
+// registration guard in EnsureDispatcherRegistered.
 [TestSuite]
 public class EntryPointsBuilderTest
 {
-    interface IMarkerService
-    {
-    }
-
-    sealed class MarkerService : IMarkerService, IInitializable
-    {
-        public void Initialize()
-        {
-        }
-    }
-
     [TestCase]
-    public void EnsureDispatcherRegistered_RegistersDispatcher()
-    {
-        var builder = new ContainerBuilder();
-
-        EntryPointsBuilder.EnsureDispatcherRegistered(builder);
-
-        AssertBool(builder.Exists(typeof(EntryPointDispatcher), false)).IsTrue();
-    }
-
-    [TestCase]
-    public void EnsureDispatcherRegistered_IsIdempotent()
+    public void EnsureDispatcherRegistered_RegistersDispatcherOnce()
     {
         var builder = new ContainerBuilder();
 
@@ -38,28 +21,7 @@ public class EntryPointsBuilderTest
         var countAfterFirst = builder.Count;
         EntryPointsBuilder.EnsureDispatcherRegistered(builder);
 
+        AssertBool(builder.Exists(typeof(EntryPointDispatcher), false)).IsTrue();
         AssertInt(builder.Count).IsEqual(countAfterFirst);
-    }
-
-    [TestCase]
-    public void Add_RegistersTypeWithImplementedInterfaces()
-    {
-        var builder = new ContainerBuilder();
-        var entryPoints = new EntryPointsBuilder(builder, Lifetime.Singleton);
-
-        entryPoints.Add<MarkerService>();
-
-        AssertBool(builder.Exists(typeof(IMarkerService), true)).IsTrue();
-    }
-
-    [TestCase]
-    public void OnException_RegistersExceptionHandlerInstance()
-    {
-        var builder = new ContainerBuilder();
-        var entryPoints = new EntryPointsBuilder(builder, Lifetime.Singleton);
-
-        entryPoints.OnException(_ => { });
-
-        AssertBool(builder.Exists(typeof(EntryPointExceptionHandler), false)).IsTrue();
     }
 }

@@ -21,33 +21,23 @@ public class CompositeDisposableTest
     }
 
     [TestCase]
-    public void Dispose_DisposesAllAddedItems()
+    public void Dispose_DisposesAllAddedItemsInLifoOrder()
     {
         var composite = new CompositeDisposable();
         var log = new List<string>();
-        var a = new RecordingDisposable(log, "a");
-        var b = new RecordingDisposable(log, "b");
-        composite.Add(a);
-        composite.Add(b);
-
-        composite.Dispose();
-
-        AssertBool(a.IsDisposed).IsTrue();
-        AssertBool(b.IsDisposed).IsTrue();
-    }
-
-    [TestCase]
-    public void Dispose_DisposesInLifoOrder()
-    {
-        var composite = new CompositeDisposable();
-        var log = new List<string>();
-        composite.Add(new RecordingDisposable(log, "first"));
-        composite.Add(new RecordingDisposable(log, "second"));
-        composite.Add(new RecordingDisposable(log, "third"));
+        var first = new RecordingDisposable(log, "first");
+        var second = new RecordingDisposable(log, "second");
+        var third = new RecordingDisposable(log, "third");
+        composite.Add(first);
+        composite.Add(second);
+        composite.Add(third);
 
         composite.Dispose();
 
         AssertArray(log).ContainsExactly("third", "second", "first");
+        AssertBool(first.IsDisposed).IsTrue();
+        AssertBool(second.IsDisposed).IsTrue();
+        AssertBool(third.IsDisposed).IsTrue();
     }
 
     [TestCase]

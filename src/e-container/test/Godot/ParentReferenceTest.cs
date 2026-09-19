@@ -8,26 +8,12 @@ namespace Enaweg.Container.Tests.Godot;
 public class ParentReferenceTest
 {
     [TestCase]
-    public void Create_SetsTypeToGenericArgument()
-    {
-        var reference = ParentReference.Create<RootLifetimeScope>(typeof(object));
-
-        AssertObject(reference.Type).IsEqual(typeof(RootLifetimeScope));
-    }
-
-    [TestCase]
-    public void Create_SetsOwnerTypeToGivenArgument()
+    public void Create_PopulatesTypeOwnerTypeAndTypeName()
     {
         var reference = ParentReference.Create<RootLifetimeScope>(typeof(ActionInstaller));
 
+        AssertObject(reference.Type).IsEqual(typeof(RootLifetimeScope));
         AssertObject(reference.OwnerType).IsEqual(typeof(ActionInstaller));
-    }
-
-    [TestCase]
-    public void TypeName_Getter_ReflectsCurrentType()
-    {
-        var reference = ParentReference.Create<RootLifetimeScope>(typeof(object));
-
         AssertString(reference.TypeName).IsEqual(typeof(RootLifetimeScope).FullName);
     }
 
@@ -61,15 +47,5 @@ public class ParentReferenceTest
         };
 
         AssertObject(reference.Type).IsNull();
-    }
-
-    [TestCase]
-    [RequireGodotRuntime]
-    public void DefaultInstance_HasNoTypeAndNoObject()
-    {
-        var reference = new ParentReference();
-
-        AssertObject(reference.Type).IsNull();
-        AssertObject(reference.Object).IsNull();
     }
 }

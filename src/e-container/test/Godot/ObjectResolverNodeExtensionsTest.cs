@@ -10,14 +10,6 @@ namespace Enaweg.Container.Tests.Godot;
 [RequireGodotRuntime]
 public partial class ObjectResolverNodeExtensionsTest
 {
-    sealed partial class InjectableNode : Node
-    {
-        public string? Received;
-
-        [Inject]
-        public void Construct(string value) => Received = value;
-    }
-
     [TestCase]
     public void InjectNode_InjectsTargetAndDescendantsRecursively()
     {

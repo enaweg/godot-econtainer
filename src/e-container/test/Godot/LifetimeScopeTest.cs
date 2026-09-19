@@ -21,6 +21,7 @@ public partial class LifetimeScopeTest
         }
 
         public void SetAutoInject(Node[] nodes) => autoInjectGameObjects = nodes;
+        public void SetAutoRun(bool value) => autoRun = value;
     }
 
     sealed partial class FindParentScope : LifetimeScope
@@ -32,14 +33,6 @@ public partial class LifetimeScopeTest
 
     sealed partial class NamedTargetScope : LifetimeScope
     {
-    }
-
-    sealed partial class InjectableNode : Node
-    {
-        public string? Received;
-
-        [Inject]
-        public void Construct(string value) => Received = value;
     }
 
     sealed class RecordingInstaller : IInstaller
@@ -63,18 +56,34 @@ public partial class LifetimeScopeTest
         Root.AddChild(scope);
 
         AssertObject(scope.Parent).IsSame(Root);
+        AssertBool(scope.IsRoot).IsFalse();
         AssertObject(scope.Container.Resolve<string>()).IsEqual("configured");
         AssertObject(scope.Container.Resolve<LifetimeScope>()).IsSame(scope);
     }
 
     [TestCase]
-    public void IsRoot_IsFalseForNonRootScope()
+    public void Build_WithAutoRunDisabled_DefersContainerCreationUntilBuild()
     {
         var scope = AutoFree(new ConfiguringScope())!;
+        scope.SetAutoRun(false);
 
         Root.AddChild(scope);
 
-        AssertBool(scope.IsRoot).IsFalse();
+        AssertObject(scope.Container).IsNull();
+
+        scope.Build();
+
+        AssertObject(scope.Container).IsNotNull();
+        AssertObject(scope.Container.Resolve<string>()).IsEqual("configured");
+    }
+
+    [TestCase]
+    public void Create_AddsScopeUnderRoot_AndAppliesConfiguration()
+    {
+        var scope = AutoFree(LifetimeScope.Create(builder => builder.RegisterInstance("created")))!;
+
+        AssertObject(scope.Parent).IsSame(Root);
+        AssertObject(scope.Container.Resolve<string>()).IsEqual("created");
     }
 
     [TestCase]
@@ -126,6 +135,17 @@ public partial class LifetimeScopeTest
         Root.AddChild(scope);
 
         AssertObject(scope.Parent).IsSame(target);
+    }
+
+    [TestCase]
+    public void Find_WithExplicitSceneTree_LocatesScopeUnderRoot()
+    {
+        var target = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(target);
+
+        var found = LifetimeScope.Find<NamedTargetScope>(Root.GetTree());
+
+        AssertObject(found).IsSame(target);
     }
 
     [TestCase]

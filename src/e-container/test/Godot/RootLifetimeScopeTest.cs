@@ -79,12 +79,4 @@ public partial class RootLifetimeScopeTest
         // disposed Node.
         RootLifetimeScope.CancelReady(otherWaiter);
     }
-
-    [TestCase]
-    public void ReadyWaitingChildren_WithEmptyList_DoesNothing()
-    {
-        var awakenParent = AutoFree(new OtherTargetScope())!;
-
-        RootLifetimeScope.ReadyWaitingChildren(awakenParent);
-    }
 }

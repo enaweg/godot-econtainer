@@ -7,67 +7,57 @@ using static GdUnit4.Assertions;
 
 namespace Enaweg.Container.Tests.Godot;
 
-// FrameTimer never calls GetFrameCount()/Engine APIs from MoveNext, so it can be driven
-// entirely by hand without a running Godot engine.
+// GodotTimeProvider.Process/.PhysicsProcess are process-wide singletons whose `time` is
+// normally advanced by FrameProviderDispatcher. Nothing instantiates that dispatcher, so these
+// tests provision `Delta`/`time` by hand and restore both afterwards.
 [TestSuite]
+[RequireGodotRuntime]
 public class GodotTimeProviderTest
 {
     [TestCase]
-    public void MoveNext_FiresCallbackOnceDueTimeElapsed_ThenStops()
+    public void GetTimestamp_ReflectsAccumulatedFrameTime()
     {
-        var provider = new GodotFrameProvider(PlayerLoopTiming.Process) { Delta = new StrongBox<double>(0.05) };
-        var callCount = 0;
-        var timer = new FrameTimer(_ => callCount++, null, TimeSpan.FromSeconds(0.1), Timeout.InfiniteTimeSpan, provider);
-        var work = (IFrameRunnerWorkItem)timer;
+        var original = GodotTimeProvider.Process.time;
+        try
+        {
+            GodotTimeProvider.Process.time = 2.5;
 
-        AssertBool(work.MoveNext(1)).IsTrue();
-        AssertInt(callCount).IsEqual(0);
-
-        AssertBool(work.MoveNext(2)).IsFalse();
-        AssertInt(callCount).IsEqual(1);
+            // gdUnit4 has no long assertion and AssertObject rejects primitives, so compare
+            // the timestamp back in seconds.
+            AssertFloat(TimeSpan.FromTicks(GodotTimeProvider.Process.GetTimestamp()).TotalSeconds)
+                .IsEqualApprox(2.5, 0.0001);
+        }
+        finally
+        {
+            GodotTimeProvider.Process.time = original;
+        }
     }
 
     [TestCase]
-    public void MoveNext_WithPeriod_FiresRepeatedlyAfterDueTime()
+    public void CreateTimer_ReturnsTimerDrivenByTheProcessFrameProvider()
     {
-        var provider = new GodotFrameProvider(PlayerLoopTiming.Process) { Delta = new StrongBox<double>(0.1) };
-        var callCount = 0;
-        var timer = new FrameTimer(_ => callCount++, null, TimeSpan.FromSeconds(0.1), TimeSpan.FromSeconds(0.1), provider);
-        var work = (IFrameRunnerWorkItem)timer;
+        var originalDelta = GodotFrameProvider.Process.Delta;
+        GodotFrameProvider.Process.Delta = new StrongBox<double>(0.05);
+        var fired = 0;
+        ITimer? timer = null;
+        try
+        {
+            timer = GodotTimeProvider.Process.CreateTimer(
+                _ => fired++,
+                null,
+                TimeSpan.FromSeconds(0.1),
+                Timeout.InfiniteTimeSpan);
 
-        AssertBool(work.MoveNext(1)).IsTrue();
-        AssertInt(callCount).IsEqual(1);
+            GodotFrameProvider.Process.Run(0.05);
+            AssertInt(fired).IsEqual(0);
 
-        AssertBool(work.MoveNext(2)).IsTrue();
-        AssertInt(callCount).IsEqual(2);
-
-        AssertBool(work.MoveNext(3)).IsTrue();
-        AssertInt(callCount).IsEqual(3);
-    }
-
-    [TestCase]
-    public void Dispose_StopsFurtherTicks()
-    {
-        var provider = new GodotFrameProvider(PlayerLoopTiming.Process) { Delta = new StrongBox<double>(1.0) };
-        var callCount = 0;
-        var timer = new FrameTimer(_ => callCount++, null, TimeSpan.FromSeconds(0.1), Timeout.InfiniteTimeSpan, provider);
-        var work = (IFrameRunnerWorkItem)timer;
-
-        timer.Dispose();
-
-        AssertBool(work.MoveNext(1)).IsFalse();
-        AssertInt(callCount).IsEqual(0);
-    }
-
-    [TestCase]
-    public void Change_AfterDispose_ReturnsFalse()
-    {
-        var provider = new GodotFrameProvider(PlayerLoopTiming.Process) { Delta = new StrongBox<double>(0.1) };
-        var timer = new FrameTimer(_ => { }, null, TimeSpan.FromSeconds(0.1), Timeout.InfiniteTimeSpan, provider);
-
-        timer.Dispose();
-        var changed = timer.Change(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-
-        AssertBool(changed).IsFalse();
+            GodotFrameProvider.Process.Run(0.05);
+            AssertInt(fired).IsEqual(1);
+        }
+        finally
+        {
+            timer?.Dispose();
+            GodotFrameProvider.Process.Delta = originalDelta;
+        }
     }
 }

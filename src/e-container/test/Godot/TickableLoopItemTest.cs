@@ -77,24 +77,17 @@ public class TickableLoopItemTest
     }
 
     [TestCase]
-    public void FixedTickableLoopItem_MoveNext_TicksAllEntries()
+    public void FixedTickableLoopItem_MoveNext_TicksAllEntries_AndStopsAfterDispose()
     {
         var a = new RecordingPhysicsTickable();
         var loopItem = new FixedTickableLoopItem(new IPhysicsTickable[] { a }, null!);
 
-        var result = loopItem.MoveNext(9);
-
-        AssertBool(result).IsTrue();
+        AssertBool(loopItem.MoveNext(9)).IsTrue();
         AssertArray(a.Frames).ContainsExactly(9L);
-    }
-
-    [TestCase]
-    public void FixedTickableLoopItem_MoveNext_AfterDispose_ReturnsFalse()
-    {
-        var loopItem = new FixedTickableLoopItem(Array.Empty<IPhysicsTickable>(), null!);
 
         loopItem.Dispose();
 
-        AssertBool(loopItem.MoveNext(1)).IsFalse();
+        AssertBool(loopItem.MoveNext(10)).IsFalse();
+        AssertArray(a.Frames).ContainsExactly(9L);
     }
 }
