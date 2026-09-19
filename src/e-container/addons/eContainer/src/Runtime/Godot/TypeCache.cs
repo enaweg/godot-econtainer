@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace Enaweg.Container.Godot;
 
@@ -9,26 +10,50 @@ public static class TypeCache
 	private static readonly Dictionary<RuntimeTypeHandle, List<Type>> cache = new Dictionary<RuntimeTypeHandle, List<Type>>();
 
 	/// <summary>
-	/// 獲取所有繼承自 T 的類型（包括接口實現）。
+	/// Returns every concrete type assignable to <typeparamref name="T"/>, including interface
+	/// implementations, excluding <typeparamref name="T"/> itself and abstract types.
 	/// </summary>
+	/// <remarks>
+	/// Results are cached for the lifetime of the assembly. A C# assembly reload in the editor
+	/// wipes static state, so newly written types are picked up on the next reload.
+	/// </remarks>
 	public static List<Type> GetTypesDerivedFrom<T>()
 	{
 		var baseType = typeof(T);
 
-		// 如果已經緩存，直接返回
 		if (cache.TryGetValue(baseType.TypeHandle, out var cachedTypeList))
 		{
 			return cachedTypeList;
 		}
 
-		// 搜索所有加載的程序集
-		var derivedTypeList = AppDomain.CurrentDomain.GetAssemblies().SelectMany(assembly => assembly.GetTypes())
+		var derivedTypeList = AppDomain.CurrentDomain.GetAssemblies()
+			.SelectMany(GetLoadableTypes)
 			.Where(type => baseType.IsAssignableFrom(type) && type != baseType && !type.IsAbstract)
 			.ToList();
 
-		// 緩存結果
 		cache[baseType.TypeHandle] = derivedTypeList;
 
 		return derivedTypeList;
+	}
+
+	/// <summary>
+	/// Assembly.GetTypes() throws if any type in the assembly cannot be loaded - a single
+	/// optional dependency missing anywhere in the process would otherwise take out every
+	/// caller, including the LifetimeScope inspector. Keep whatever did load.
+	/// </summary>
+	private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+	{
+		try
+		{
+			return assembly.GetTypes();
+		}
+		catch (ReflectionTypeLoadException ex)
+		{
+			return ex.Types.Where(type => type != null)!;
+		}
+		catch (Exception)
+		{
+			return Array.Empty<Type>();
+		}
 	}
 }

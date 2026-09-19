@@ -30,6 +30,30 @@ public partial class ObjectResolverNodeExtensionsTest
         AssertObject(grandchild.Received).IsEqual("payload");
     }
 
+    // A nested scope resolves its own subtree from its own container, so the parent resolver
+    // must stop at that boundary instead of injecting straight through it.
+    [TestCase]
+    public void InjectNode_StopsAtNestedLifetimeScopes()
+    {
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        using var resolver = builder.Build();
+
+        var root = AutoFree(new InjectableNode())!;
+        var sibling = new InjectableNode();
+        var nestedScope = new LifetimeScope();
+        var underNestedScope = new InjectableNode();
+        root.AddChild(sibling);
+        root.AddChild(nestedScope);
+        nestedScope.AddChild(underNestedScope);
+
+        resolver.InjectNode(root);
+
+        AssertObject(root.Received).IsEqual("payload");
+        AssertObject(sibling.Received).IsEqual("payload");
+        AssertObject(underNestedScope.Received).IsNull();
+    }
+
     [TestCase]
     public void InjectNode_WithNullNode_DoesNotThrow()
     {

@@ -350,6 +350,17 @@ public partial class LifetimeScope : Node, IDisposable
 			return implParent;
 		}
 
+		// An EnqueueParent() override is an explicit, caller-scoped instruction, so it wins
+		// over a parent type declared in the scene. Checking it after the type lookup below
+		// meant the override was silently ignored for any scope with parentTypeName set.
+		lock (SyncRoot)
+		{
+			if (GlobalOverrideParents.Count > 0)
+			{
+				return GlobalOverrideParents.Peek();
+			}
+		}
+
 		// Find in scene via type
 		if (ParentReference.Type != null && ParentReference.Type != GetType())
 		{
@@ -357,14 +368,6 @@ public partial class LifetimeScope : Node, IDisposable
 				return foundScope;
 
 			throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
-		}
-
-		lock (SyncRoot)
-		{
-			if (GlobalOverrideParents.Count > 0)
-			{
-				return GlobalOverrideParents.Peek();
-			}
 		}
 
 		if (ParentReference.Type == null)

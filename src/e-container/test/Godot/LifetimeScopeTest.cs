@@ -270,6 +270,28 @@ public partial class LifetimeScopeTest
         AssertObject(scope.Parent).IsSame(customParent);
     }
 
+    // EnqueueParent is an explicit, caller-scoped instruction, so it must beat a parent type
+    // declared on the scope. It used to be checked only after the declared-type lookup, which
+    // meant it was silently ignored for any scope with parentTypeName set.
+    [TestCase]
+    public void EnqueueParent_OverridesADeclaredParentType()
+    {
+        var declaredParent = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(declaredParent);
+        var overrideParent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(overrideParent);
+
+        LifetimeScope scope;
+        using (LifetimeScope.EnqueueParent(overrideParent))
+        {
+            scope = AutoFree(new LifetimeScope())!;
+            scope.ParentReference = ParentReference.Create<NamedTargetScope>(typeof(LifetimeScope));
+            Root.AddChild(scope);
+        }
+
+        AssertObject(scope.Parent).IsSame(overrideParent);
+    }
+
     [TestCase]
     public void Enqueue_AppliesGlobalInstallerToNextBuild()
     {
