@@ -112,6 +112,67 @@ public partial class LifetimeScopeTest
         AssertObject(child.Container.Resolve<RecordingInstaller>()).IsSame(installer);
     }
 
+    static PackedScene PackScene(Node root)
+    {
+        var scene = new PackedScene();
+        scene.Pack(root);
+        root.Free();
+        return scene;
+    }
+
+    [TestCase]
+    public void CreateChildFromPackedScene_WithScopeAsSceneRoot_AttachesAndInstalls()
+    {
+        var parent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(parent);
+        var scene = PackScene(new PackedChildScope());
+
+        var child = parent.CreateChildFromPackedScene<PackedChildScope>(
+            scene,
+            builder => builder.RegisterInstance(7));
+
+        AssertObject(child).IsNotNull();
+        AssertObject(child.GetParent()).IsSame(parent);
+        AssertObject(child.Parent).IsSame(parent);
+        AssertObject(child.Container.Resolve<string>()).IsEqual("packed");
+        AssertInt(child.Container.Resolve<int>()).IsEqual(7);
+    }
+
+    [TestCase]
+    public void CreateChildFromPackedScene_WithScopeUnderPlainRoot_AttachesScopeAndDropsWrapper()
+    {
+        var parent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(parent);
+
+        var wrapper = new Node();
+        var scope = new PackedChildScope();
+        wrapper.AddChild(scope);
+        scope.Owner = wrapper;
+        var scene = PackScene(wrapper);
+
+        var child = parent.CreateChildFromPackedScene<PackedChildScope>(scene);
+
+        AssertObject(child).IsNotNull();
+        // The plain wrapper root is discarded, not reparented along with the scope.
+        AssertObject(child.GetParent()).IsSame(parent);
+        AssertObject(child.Parent).IsSame(parent);
+        AssertObject(child.Container.Resolve<string>()).IsEqual("packed");
+    }
+
+    [TestCase]
+    public void CreateChildFromPackedScene_WithoutMatchingScope_ReturnsNullAndAddsNothing()
+    {
+        var parent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(parent);
+        var childCountBefore = parent.GetChildCount();
+        var scene = PackScene(new Node());
+
+        var child = parent.CreateChildFromPackedScene<PackedChildScope>(scene);
+
+        AssertObject(child).IsNull();
+        AssertInt(parent.GetChildCount()).IsEqual(childCountBefore);
+    }
+
     [TestCase]
     public void Build_UsesFindParentOverride_WhenParentReferenceObjectNotSet()
     {

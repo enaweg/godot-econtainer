@@ -1,3 +1,4 @@
+using Enaweg.Container.Godot;
 using Godot;
 using VContainer;
 
@@ -13,4 +14,17 @@ public sealed partial class InjectableNode : Node
 
     [Inject]
     public void Construct(string value) => Received = value;
+}
+
+/// <summary>
+/// A scope that can be packed into a <see cref="PackedScene"/> for the
+/// <c>CreateChildFromPackedScene</c> tests. Top-level rather than nested so the packed scene
+/// can carry its script reference.
+/// </summary>
+public sealed partial class PackedChildScope : LifetimeScope
+{
+    protected override void Configure(IContainerBuilder builder)
+    {
+        builder.RegisterInstance("packed");
+    }
 }

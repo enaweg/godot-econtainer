@@ -247,10 +247,15 @@ public partial class LifetimeScope : Node, IDisposable
 	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, IInstaller installer = null) where TScope : LifetimeScope
 	{
 		Node sceneNode = scene.Instantiate();
-		var child = sceneNode.GetChildren().FirstOrDefault() as TScope;
+
+		// The scope is normally the scene's root - the direct analogue of VContainer's
+		// prefab-with-a-LifetimeScope-component - but scenes that wrap it in a plain root
+		// node are tolerated too.
+		TScope child = sceneNode as TScope ?? sceneNode.GetChildren().OfType<TScope>().FirstOrDefault();
 		if (child == null)
 		{
 			GD.PushWarning($"PackedScene {scene.ResourcePath} does not contain a {typeof(TScope).Name}.");
+			sceneNode.Free();
 			return null;
 		}
 
@@ -259,6 +264,16 @@ public partial class LifetimeScope : Node, IDisposable
 			child.localExtraInstallers.Add(installer);
 		}
 
+		// AddChild() fails on a node that still has a parent, so detach the scope from the
+		// instantiated scene first and free the wrapper that is left behind.
+		if (child != sceneNode)
+		{
+			sceneNode.RemoveChild(child);
+			sceneNode.Free();
+		}
+
+		// Must be assigned before the node enters the tree: _EnterTree() resolves the parent
+		// scope and builds the container.
 		child.ParentReference.Object = this;
 		AddChild(child);
 		return child;
