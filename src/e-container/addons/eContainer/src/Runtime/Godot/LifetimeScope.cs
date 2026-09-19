@@ -80,6 +80,11 @@ public partial class LifetimeScope : Node, IDisposable
 
 	static LifetimeScope Find(Type type, SceneTree scene)
 	{
+		if (Root == null)
+		{
+			return null;
+		}
+
 		if (type == typeof(RootLifetimeScope))
 		{
 			return Root;
@@ -94,13 +99,21 @@ public partial class LifetimeScope : Node, IDisposable
 			}
 		}
 
-		Array<Node> childArray = scene.CurrentScene.GetChildren();
-		if (scene.CurrentScene is LifetimeScope lifetimeScope && lifetimeScope.GetType() == type)
+		// CurrentScene is null while autoloads enter the tree before the main scene has been
+		// instantiated, and again while change_scene_to_*() swaps scenes. There is simply no
+		// scene to search then - "not found" is the answer, not a crash.
+		Node currentScene = scene?.CurrentScene;
+		if (currentScene == null)
+		{
+			return null;
+		}
+
+		if (currentScene is LifetimeScope lifetimeScope && lifetimeScope.GetType() == type)
 		{
 			return lifetimeScope;
 		}
 
-		foreach (Node child in childArray)
+		foreach (Node child in currentScene.GetChildren())
 		{
 			if (child.GetType() == type)
 			{
@@ -111,7 +124,7 @@ public partial class LifetimeScope : Node, IDisposable
 		return null;
 	}
 
-	static LifetimeScope Find(Type type) => Find(type, Root.GetTree());
+	static LifetimeScope Find(Type type) => Root == null ? null : Find(type, Root.GetTree());
 	protected static RootLifetimeScope Root { get; set; }
 	public IObjectResolver Container { get; private set; }
 	public LifetimeScope Parent { get; private set; }

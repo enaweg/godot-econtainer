@@ -35,6 +35,11 @@ public partial class LifetimeScopeTest
     {
     }
 
+    // Deliberately never added to the tree, so looking it up always misses.
+    sealed partial class AbsentScope : LifetimeScope
+    {
+    }
+
     sealed class RecordingInstaller : IInstaller
     {
         public bool Installed { get; private set; }
@@ -207,6 +212,34 @@ public partial class LifetimeScopeTest
         var found = LifetimeScope.Find<NamedTargetScope>(Root.GetTree());
 
         AssertObject(found).IsSame(target);
+    }
+
+    // SceneTree.CurrentScene is null here, as it is while autoloads enter the tree ahead of the
+    // main scene and during change_scene_to_*(). Find() used to dereference it unguarded.
+    [TestCase]
+    public void Find_WithMissingType_ReturnsNullInsteadOfThrowing()
+    {
+        AssertObject(Root.GetTree().CurrentScene).IsNull();
+
+        AssertObject(LifetimeScope.Find<AbsentScope>()).IsNull();
+        AssertObject(LifetimeScope.Find<AbsentScope>(Root.GetTree())).IsNull();
+    }
+
+    // The NRE above escaped _EnterTree, which only catches
+    // VContainerParentTypeReferenceNotFound, so the scope was silently dropped rather than
+    // queued. It should now land on the waiting list.
+    [TestCase]
+    public void Build_WithParentTypeNotInTreeYet_EnqueuesScopeOnTheWaitingList()
+    {
+        var waiter = AutoFree(new LifetimeScope())!;
+        waiter.ParentReference = ParentReference.Create<AbsentScope>(typeof(LifetimeScope));
+
+        Root.AddChild(waiter);
+
+        AssertBool(RootLifetimeScope.WaitingListContains(waiter)).IsTrue();
+
+        // Leave no dangling entry in the static list for later tests to trip over.
+        RootLifetimeScope.CancelReady(waiter);
     }
 
     [TestCase]
