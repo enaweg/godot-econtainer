@@ -7,9 +7,10 @@ using static GdUnit4.Assertions;
 
 namespace Enaweg.Container.Tests.Godot;
 
-// GodotTimeProvider.Process/.PhysicsProcess are process-wide singletons whose `time` is
-// normally advanced by FrameProviderDispatcher. Nothing instantiates that dispatcher, so these
-// tests provision `Delta`/`time` by hand and restore both afterwards.
+// GodotTimeProvider.Process/.PhysicsProcess are process-wide singletons whose `time` and
+// `Delta` are advanced by the autoload's FrameProviderDispatcher. These tests pin both to known
+// values so they assert on exact numbers rather than on whatever the engine has accumulated,
+// and restore the originals afterwards.
 [TestSuite]
 [RequireGodotRuntime]
 public class GodotTimeProviderTest

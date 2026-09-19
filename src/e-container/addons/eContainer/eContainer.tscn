@@ -1,8 +1,12 @@
-[gd_scene load_steps=2 format=3 uid="uid://ebvcs8ligmsr"]
+[gd_scene load_steps=3 format=3 uid="uid://ebvcs8ligmsr"]
 
 [ext_resource type="Script" uid="uid://cglet1f2staai" path="res://addons/eContainer/src/Runtime/Godot/RootLifetimeScope.cs" id="1_7by6w"]
+[ext_resource type="Script" uid="uid://du7j8mho0w2xt" path="res://addons/eContainer/src/Runtime/Godot/FrameProviderDispatcher.cs" id="2_dsp0f"]
 
 [node name="eContainer" type="Node"]
 
 [node name="RootLifetimeScope" type="Node" parent="."]
 script = ExtResource("1_7by6w")
+
+[node name="FrameProviderDispatcher" type="Node" parent="."]
+script = ExtResource("2_dsp0f")
