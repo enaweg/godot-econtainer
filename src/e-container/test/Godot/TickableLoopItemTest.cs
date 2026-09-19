@@ -6,7 +6,10 @@ using static GdUnit4.Assertions;
 
 namespace Enaweg.Container.Tests.Godot;
 
+// Requires the Godot runtime: without an exception handler the loop items now report through
+// GD.PrintErr, and calling Godot APIs outside the runtime crashes the test host.
 [TestSuite]
+[RequireGodotRuntime]
 public class TickableLoopItemTest
 {
     sealed class RecordingTickable : ITickable
@@ -68,12 +71,18 @@ public class TickableLoopItemTest
         AssertArray(after.Frames).ContainsExactly(3L);
     }
 
+    // Without a handler the exception must still not escape: GodotFrameProvider.Run()
+    // deregisters any work item that throws, which would stop every tickable in the scope.
     [TestCase]
-    public void MoveNext_ExceptionWithoutHandler_Rethrows()
+    public void MoveNext_ExceptionWithoutHandler_KeepsTickingAndStaysRegistered()
     {
-        var loopItem = new TickableLoopItem(new ITickable[] { new ThrowingTickable() }, null!);
+        var after = new RecordingTickable();
+        var loopItem = new TickableLoopItem(new ITickable[] { new ThrowingTickable(), after }, null!);
 
-        AssertThrown(() => loopItem.MoveNext(1)).IsInstanceOf<InvalidOperationException>();
+        var result = loopItem.MoveNext(1);
+
+        AssertBool(result).IsTrue();
+        AssertArray(after.Frames).ContainsExactly(1L);
     }
 
     [TestCase]

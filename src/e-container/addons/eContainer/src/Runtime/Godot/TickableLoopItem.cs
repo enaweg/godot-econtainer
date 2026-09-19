@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Godot;
 
 namespace Enaweg.Container.Godot;
 
@@ -28,8 +29,12 @@ public sealed class FixedTickableLoopItem : IFrameRunnerWorkItem, IDisposable
 			}
 			catch (Exception ex)
 			{
-				if (exceptionHandler == null) throw;
-				exceptionHandler.Publish(ex);
+				// Never rethrow: GodotFrameProvider.Run() deregisters a work item that throws,
+				// which would silently stop every other entry in this scope too.
+				if (exceptionHandler != null)
+					exceptionHandler.Publish(ex);
+				else
+					GD.PrintErr(ex);
 			}
 		}
 
@@ -54,8 +59,12 @@ public sealed class TickableLoopItem(IReadOnlyList<ITickable> entries, EntryPoin
 			}
 			catch (Exception ex)
 			{
-				if (exceptionHandler == null) throw;
-				exceptionHandler.Publish(ex);
+				// Never rethrow: GodotFrameProvider.Run() deregisters a work item that throws,
+				// which would silently stop every other entry in this scope too.
+				if (exceptionHandler != null)
+					exceptionHandler.Publish(ex);
+				else
+					GD.PrintErr(ex);
 			}
 		}
 

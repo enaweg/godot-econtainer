@@ -58,4 +58,29 @@ public partial class ObjectResolverNodeExtensionsTest
         AssertObject(instance.GetParent()).IsSame(parent);
         AssertObject(instance.Received).IsEqual("payload");
     }
+
+    // AddChild() runs _EnterTree/_Ready synchronously, so injecting after it left every
+    // injected member null in _Ready - the most likely place to use them.
+    [TestCase]
+    public void Instantiate_InjectsBeforeTheNodeEntersTheTree()
+    {
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        using var resolver = builder.Build();
+
+        var template = new ReadyRecordingNode();
+        var scene = new PackedScene();
+        scene.Pack(template);
+        template.Free();
+
+        // The parent has to be in the tree, otherwise AddChild() never triggers _Ready and the
+        // test would pass for the wrong reason.
+        var parent = AutoFree(new Node())!;
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(parent);
+
+        var instance = resolver.Instantiate<ReadyRecordingNode>(scene, parent);
+
+        AssertBool(instance.ReadyRan).IsTrue();
+        AssertObject(instance.ReceivedDuringReady).IsEqual("payload");
+    }
 }

@@ -73,6 +73,46 @@ public partial class NodeRegistrationBuilderTest
         node.Free();
     }
 
+    [TestCase]
+    public void Build_WithUnderTransform_PlacesNodeUnderTheGivenParent()
+    {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var holder = AutoFree(new Node())!;
+        tree.Root.AddChild(holder);
+        var node = new InjectableNode();
+
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        builder.Register(new NodeRegistrationBuilder(node).UnderTransform(holder).As(typeof(InjectableNode)));
+
+        using var resolver = builder.Build();
+        resolver.Resolve<InjectableNode>();
+
+        // Freed together with holder, which AutoFree owns.
+        AssertObject(node.GetParent()).IsSame(holder);
+    }
+
+    [TestCase]
+    public void Build_WithUnderTransform_ReparentsAnAlreadyParentedNode()
+    {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var origin = AutoFree(new Node())!;
+        var holder = AutoFree(new Node())!;
+        tree.Root.AddChild(origin);
+        tree.Root.AddChild(holder);
+        var node = new InjectableNode();
+        origin.AddChild(node);
+
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance("payload");
+        builder.Register(new NodeRegistrationBuilder(node).UnderTransform(holder).As(typeof(InjectableNode)));
+
+        using var resolver = builder.Build();
+        resolver.Resolve<InjectableNode>();
+
+        AssertObject(node.GetParent()).IsSame(holder);
+    }
+
     // The scene/prefab/name-based providers are declared but intentionally stubbed out
     // upstream (see NodeRegistrationBuilder.Build()) - this pins that current state so
     // implementing any of them is a deliberate change rather than a silent one.
