@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
-using Godot.Collections;
 using VContainer;
-using Array = System.Array;
 
 namespace Enaweg.Container.Godot;
 
 
-public partial class LifetimeScope : Node, IDisposable
+// Node already implements IDisposable - re-declaring it here only served to give the former
+// `new Dispose()` the interface slot, diverging from Godot's own disposal path.
+public partial class LifetimeScope : Node
 {
 	public readonly struct ParentOverrideScope : IDisposable
 	{
@@ -190,19 +190,28 @@ public partial class LifetimeScope : Node, IDisposable
 	protected virtual void Configure(IContainerBuilder builder) { }
 
 
-	public new void Dispose()
+	// Overrides GodotObject.Dispose(bool) rather than hiding it with `new`. Hiding put this
+	// logic in a second, parallel virtual slot: Godot's own disposal path reached the base
+	// slot and skipped DisposeCore, while this slot never chained to the base at all - it
+	// suppressed the finalizer without ever releasing the native binding.
+	protected override void Dispose(bool disposing)
 	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
+		if (disposing)
+		{
+			DisposeCore();
 
-	protected new virtual void Dispose(bool disposing)
-	{
-		if (!disposing)
-			return;
+			// Unchanged contract: disposing a scope also gets rid of its node. Deferred
+			// rather than immediate, because Dispose() may be called from a signal handler
+			// or a _Process callback, where freeing a node outright is not safe.
+			//
+			// Must happen before base.Dispose(), which clears the native pointer this needs.
+			if (IsInstanceValid(this) && !IsQueuedForDeletion())
+			{
+				QueueFree();
+			}
+		}
 
-		DisposeCore();
-		QueueFree();
+		base.Dispose(disposing);
 	}
 
 	void DisposeCore()
