@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Enaweg.Container.Internal;
 using Godot;
 using VContainer;
 
@@ -341,6 +342,8 @@ public partial class LifetimeScope : Node
 
 	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, IInstaller installer = null) where TScope : LifetimeScope
 	{
+		ThrowHelper.ThrowArgumentNullIfNull(scene);
+
 		Node sceneNode = scene.Instantiate();
 
 		// The scope is normally the scene's root - the direct analogue of VContainer's
