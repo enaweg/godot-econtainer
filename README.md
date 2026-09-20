@@ -86,12 +86,12 @@ cascade down the scope hierarchy.
 Resolved classes can opt into the entry-point lifecycle by implementing the annotation interfaces:
 
 ```csharp
-using Enaweg.Container.Annotations;
+using Enaweg.Container.Godot;
 
 public class PlayerService : IInitializable, ITickable
 {
     public void Initialize() { /* runs once the scope resolves */ }
-    public void Tick() { /* runs every _Process */ }
+    public void Tick(long frameCount) { /* runs every _Process */ }
 }
 ```
 
