@@ -90,13 +90,9 @@ public partial class LifetimeScope : Node, IDisposable
 			return Root;
 		}
 
-		Array<Node> rootChildren = Root.GetChildren(true);
-		foreach (Node child in rootChildren)
+		if (FindInSubtree(Root, type) is { } scopeUnderRoot)
 		{
-			if (child.GetType() == type)
-			{
-				return child as LifetimeScope;
-			}
+			return scopeUnderRoot;
 		}
 
 		// CurrentScene is null while autoloads enter the tree before the main scene has been
@@ -113,11 +109,35 @@ public partial class LifetimeScope : Node, IDisposable
 			return lifetimeScope;
 		}
 
-		foreach (Node child in currentScene.GetChildren())
+		return FindInSubtree(currentScene, type);
+	}
+
+	/// <summary>
+	/// Depth-first search of <paramref name="current"/>'s descendants for a scope of exactly
+	/// <paramref name="type"/>.
+	/// </summary>
+	/// <remarks>
+	/// Searching the whole subtree, not just direct children: a scope attached partway down a
+	/// scene - the usual layout for one that owns a sub-hierarchy - was invisible to parent
+	/// lookup before, so anything declaring it as a parent type queued forever.
+	/// </remarks>
+	static LifetimeScope FindInSubtree(Node current, Type type)
+	{
+		int childCount = current.GetChildCount(true);
+		for (int i = 0; i < childCount; i++)
 		{
-			if (child.GetType() == type)
+			Node child = current.GetChild(i, true);
+
+			// `is LifetimeScope` first: ParentReference.Type is resolved from a name stored in
+			// the scene, so it is not guaranteed to name a scope type at all.
+			if (child is LifetimeScope scope && scope.GetType() == type)
 			{
-				return child as LifetimeScope;
+				return scope;
+			}
+
+			if (FindInSubtree(child, type) is { } found)
+			{
+				return found;
 			}
 		}
 
