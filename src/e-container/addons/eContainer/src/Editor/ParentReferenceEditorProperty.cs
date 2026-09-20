@@ -9,13 +9,17 @@ namespace Enaweg.Container.Editor;
 
 public partial class ParentReferenceEditorProperty : EditorProperty
 {
+    // Index 0 is the "no parent declared" entry. It is shown as "None" but stored as an empty
+    // string: storing the literal "None" put a name in the scene file that no type will ever
+    // match, and only resolved to "no type" because the lookup happened to fail.
+    const string NoneLabel = "None";
+    const string NoneValue = "";
+
     static string[] GetAllTypeNames()
     {
-        return new List<string> { "None" }
+        return new List<string> { NoneValue }
             .Concat(TypeCache.GetTypesDerivedFrom<LifetimeScope>().Select(type => type.FullName)).ToArray();
     }
-
-    static string GetLabel(Type type) => $"{type.Namespace}/{type.Name}";
 
     string[] names;
     private OptionButton optionButton = new OptionButton();
@@ -38,11 +42,15 @@ public partial class ParentReferenceEditorProperty : EditorProperty
         optionButton.Clear();
         foreach (var name in names)
         {
-            optionButton.AddItem(name);
+            optionButton.AddItem(name == NoneValue ? NoneLabel : name);
         }
 
         var value = GetEditedObject().Get(GetEditedProperty()).AsString();
-        var index = Array.IndexOf(names, value);
+        var index = Array.IndexOf(names, value ?? NoneValue);
+
+        // A name that is not in the list - a scope type that was renamed or failed to compile -
+        // must not silently select "None": that would write the loss back on the next edit.
+        // Leaving the button unselected shows the stored value is not one of the options.
         optionButton.Select(index);
     }
 

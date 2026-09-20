@@ -48,4 +48,18 @@ public class ParentReferenceTest
 
         AssertObject(reference.Type).IsNull();
     }
+
+    // The getter used to re-derive the name from Type, so an unresolved type erased the stored
+    // name on the first read - and a read is all it takes for Godot to serialise the scene.
+    [TestCase]
+    public void TypeName_SetToUnknownType_IsStillPreservedWhenReadBack()
+    {
+        var reference = new ParentReference
+        {
+            TypeName = "Totally.Unknown.Type, NoSuchAssembly"
+        };
+
+        AssertString(reference.TypeName).IsEqual("Totally.Unknown.Type, NoSuchAssembly");
+        AssertString(reference.TypeName).IsEqual("Totally.Unknown.Type, NoSuchAssembly");
+    }
 }

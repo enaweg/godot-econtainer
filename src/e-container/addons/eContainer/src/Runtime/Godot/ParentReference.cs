@@ -1,6 +1,4 @@
 using System;
-using System.ComponentModel.DataAnnotations;
-using Godot;
 
 namespace Enaweg.Container.Godot;
 
@@ -8,14 +6,18 @@ public partial struct ParentReference
 {
 	private string typeName;
 
-	[Export]
+	/// <summary>
+	/// The assembly-qualified-ish name of the parent scope type, as stored in the scene.
+	/// </summary>
+	/// <remarks>
+	/// The getter is a plain field read. It used to re-derive the name from <see cref="Type"/>
+	/// first, which silently erased the stored name whenever the type had failed to resolve -
+	/// a renamed class, an assembly not loaded yet, a broken build. The inspector reading the
+	/// property, or Godot serialising the scene, was enough to write that loss to disk.
+	/// </remarks>
 	public string TypeName
 	{
-		get
-		{
-			OnBeforeSerialize();
-			return typeName;
-		}
+		get => typeName;
 		set
 		{
 			typeName = value;
@@ -25,16 +27,8 @@ public partial struct ParentReference
 
 	public LifetimeScope Object;
 
-	[Required] public Type OwnerType { get; init; }
+	public Type OwnerType { get; init; }
 	public Type Type { get; private set; }
-	
-	ParentReference(Type type) : this()
-	{
-		Type = type;
-		typeName = type.FullName;
-		Object = null;
-	}
-	
 	
 	ParentReference(Type ownerType, Type type) : this()
 	{
@@ -44,26 +38,23 @@ public partial struct ParentReference
 		OwnerType = ownerType;
 	}
 
-	private void OnBeforeSerialize()
-	{
-		this.typeName = Type?.FullName;
-	}
-
 	public void OnAfterDeserialize()
 	{
-		if (!string.IsNullOrEmpty(typeName))
-		{
-			foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-			{
-				Type = assembly.GetType(typeName);
-				if (Type != null)
-					break;
-			}
-		}
-		else
+		if (string.IsNullOrEmpty(typeName))
 		{
 			Type = null;
+			return;
 		}
+
+		Type resolved = null;
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			resolved = assembly.GetType(typeName);
+			if (resolved != null)
+				break;
+		}
+
+		Type = resolved;
 	}
 
 	public static ParentReference Create<T>(Type ownerType) => new ParentReference(ownerType, typeof(T));
