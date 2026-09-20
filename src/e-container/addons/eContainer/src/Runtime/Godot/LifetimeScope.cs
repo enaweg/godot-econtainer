@@ -194,17 +194,37 @@ public partial class LifetimeScope : Node, IDisposable
 
 	public void Build()
 	{
+		// Building twice would silently orphan the first container - its singletons never
+		// disposed - and dispatch this scope's entry points a second time, so every tickable
+		// would run twice per frame. Build() is reachable from _EnterTree, from the waiting
+		// list flush and from user code, so it has to be idempotent.
+		if (Container != null)
+			return;
+
 		Parent ??= GetRuntimeParent();
 
 		if (Parent != null)
 		{
-			if (Parent.IsRoot)
+			if (Parent.Container == null)
 			{
+				// A parent cannot host a child scope before it has a container of its own.
+				// This used to be limited to the root scope, which left every other unbuilt
+				// parent - an explicit ParentReference.Object, or a parent with autoRun off -
+				// to fail with a NullReferenceException below.
+				Parent.Build();
+
+				// Parent.Build() flushes the waiting list, which may have built this scope
+				// re-entrantly. The guard above already ran, so re-check before continuing.
+				if (Container != null)
+					return;
+
 				if (Parent.Container == null)
-					Parent.Build();
+				{
+					throw new VContainerException(Parent.GetType(),
+						$"{Name} cannot build: its parent scope {Parent.Name} ({Parent.GetType()}) has no container.");
+				}
 			}
 
-			// ReSharper disable once PossibleNullReferenceException
 			Parent.Container.CreateScope(builder =>
 			{
 				builder.RegisterBuildCallback(SetContainer);

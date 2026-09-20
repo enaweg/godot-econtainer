@@ -98,7 +98,14 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 		{
 			// Remove first: waking a scope builds it, and Build() re-enters
 			// ReadyWaitingChildren, which must not see this scope again.
-			WaitingList.Remove(waitingScope);
+			//
+			// A failed Remove means that nested flush already woke this scope - it is queued
+			// behind a parent that is itself queued, and the parent's Build() got to it first.
+			// Waking it again here would build it a second time, orphaning the container it
+			// just got and dispatching its entry points twice.
+			if (!WaitingList.Remove(waitingScope))
+				continue;
+
 			Wake(waitingScope);
 		}
 	}
