@@ -10,7 +10,9 @@
 ![VContainer 1.19.0](https://img.shields.io/badge/VContainer-v1.19.0-202020?color=darkgreen&labelColor=202020)
 
 **NOTE**: This project is experimental and still a work in progress.
-**NOTE2**: This is based onn https://github.com/nazgull30
+
+**NOTE2**: This is based on https://github.com/nazgull30
+
 </div>
 
 ## Requirements
