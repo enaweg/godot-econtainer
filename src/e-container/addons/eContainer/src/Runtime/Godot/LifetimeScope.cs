@@ -9,15 +9,22 @@ namespace Enaweg.Container.Godot;
 
 // Node already implements IDisposable - re-declaring it here only served to give the former
 // `new Dispose()` the interface slot, diverging from Godot's own disposal path.
+//
+// [GlobalClass] so a plain LifetimeScope can be picked by name in the editor's Create Node
+// dialog, instead of having to be created as a Node with the script attached by hand.
+[GlobalClass]
 public partial class LifetimeScope : Node
 {
 	public readonly struct ParentOverrideScope : IDisposable
 	{
+		readonly LifetimeScope pushed;
+
 		public ParentOverrideScope(LifetimeScope nextParent)
 		{
+			pushed = nextParent;
 			lock (SyncRoot)
 			{
-				GlobalOverrideParents.Push(nextParent);
+				GlobalOverrideParents.Add(nextParent);
 			}
 		}
 
