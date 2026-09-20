@@ -114,7 +114,7 @@ internal sealed class EGlobal
 
             if (context.PluginBase is IInitialize initialize)
             {
-                initialize.Initialize(_ePluginContext);
+                initialize.Initialize(_ePluginContext!);
             }
         }
 
@@ -211,7 +211,7 @@ internal sealed class EGlobal
                 }
                 else
                 {
-                    context.Logger.Warn(
+                    context.Logger?.Warn(
                         $"Dependency {dependency.Slug} {dependencyVersion} does not match needed {dependency.Version} of {context.Slug}!");
 
                     _toCheckEnable.Push(context);
@@ -221,7 +221,7 @@ internal sealed class EGlobal
                 }
             }
 
-            if (_ePluginContext.EnableDebugLogging)
+            if (_ePluginContext!.EnableDebugLogging)
             {
                 context.Logger?.Log($"Dependency {dependency.Slug} {dependency.Version} ready for {context.Slug}.");
             }
@@ -535,7 +535,7 @@ internal sealed class EGlobal
         while (_toInitialize.Count > 0)
         {
             var initializer = _toInitialize.Dequeue();
-            initializer.Initialize(_ePluginContext);
+            initializer.Initialize(_ePluginContext!);
         }
     }
 

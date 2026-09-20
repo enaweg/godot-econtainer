@@ -20,7 +20,7 @@ struct NodeDestination
 		if (ParentFinder != null)
 			return ParentFinder(resolver);
 
-		return null;
+		return null!;
 	}
 }
 
@@ -28,12 +28,12 @@ struct NodeDestination
 /// <remarks>Instances are created by <see cref="ContainerBuilderNodeExtensions.RegisterNode{TInterface}"/>.</remarks>
 public sealed class NodeRegistrationBuilder : RegistrationBuilder
 {
-	readonly object instance;
-	readonly Func<IObjectResolver, Node> packedSceneFinder;
-	readonly string gameObjectName;
+	readonly object instance = null!;
+	readonly Func<IObjectResolver, Node> packedSceneFinder = null!;
+	readonly string gameObjectName = null!;
 
 	NodeDestination destination;
-	SceneTree scene;
+	SceneTree scene = null!;
 
 	internal NodeRegistrationBuilder(object instance)
 		: base(GetInstanceType(instance), Lifetime.Singleton)

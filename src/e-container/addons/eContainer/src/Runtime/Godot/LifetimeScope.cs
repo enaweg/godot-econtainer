@@ -66,7 +66,7 @@ public partial class LifetimeScope : Node
 	}
 
 	/// <summary>Serialized and runtime information used to locate this scope's parent.</summary>
-	public ParentReference ParentReference;
+	public ParentReference ParentReference = default;
 
 	/// <summary>Gets or sets the serialized parent-scope type name shown by Godot's inspector.</summary>
 	[Export]
@@ -145,7 +145,7 @@ public partial class LifetimeScope : Node
 	{
 		if (Root == null)
 		{
-			return null;
+			return null!;
 		}
 
 		if (type == typeof(RootLifetimeScope))
@@ -161,10 +161,10 @@ public partial class LifetimeScope : Node
 		// CurrentScene is null while autoloads enter the tree before the main scene has been
 		// instantiated, and again while change_scene_to_*() swaps scenes. There is simply no
 		// scene to search then - "not found" is the answer, not a crash.
-		Node currentScene = scene?.CurrentScene;
+		Node currentScene = scene?.CurrentScene!;
 		if (currentScene == null)
 		{
-			return null;
+			return null!;
 		}
 
 		if (currentScene is LifetimeScope lifetimeScope && lifetimeScope.GetType() == type)
@@ -204,15 +204,15 @@ public partial class LifetimeScope : Node
 			}
 		}
 
-		return null;
+		return null!;
 	}
 
-	static LifetimeScope Find(Type type) => Root == null ? null : Find(type, Root.GetTree());
-	protected static RootLifetimeScope Root { get; set; }
+	static LifetimeScope Find(Type type) => Root == null ? null! : Find(type, Root.GetTree());
+	protected static RootLifetimeScope Root { get; set; } = null!;
 	/// <summary>Gets this scope's built resolver, or <see langword="null"/> until it has built or after disposal.</summary>
-	public IObjectResolver Container { get; private set; }
+	public IObjectResolver Container { get; private set; } = null!;
 	/// <summary>Gets the resolved parent scope, or <see langword="null"/> when this scope is a root scope.</summary>
-	public LifetimeScope Parent { get; private set; }
+	public LifetimeScope Parent { get; private set; } = null!;
 
 	/// <summary>Gets whether this instance is the active eContainer root scope.</summary>
 	public bool IsRoot => this == Root;
@@ -286,10 +286,10 @@ public partial class LifetimeScope : Node
 	void DisposeCore()
 	{
 		Container?.Dispose();
-		Container = null;
+		Container = null!;
 		// Cleared too, so a torn-down scope stops keeping its parent node reachable. _EnterTree
 		// resolves it again from scratch if this scope re-enters the tree.
-		Parent = null;
+		Parent = null!;
 		RootLifetimeScope.CancelReady(this);
 	}
 
@@ -373,7 +373,7 @@ public partial class LifetimeScope : Node
 
 	/// <summary>Creates, attaches, and builds a child scope of type <typeparamref name="TScope"/>.</summary>
 	/// <param name="installer">Optional registrations applied only to the child scope.</param>
-	public TScope CreateChild<TScope>(IInstaller installer = null) where TScope : LifetimeScope, new()
+	public TScope CreateChild<TScope>(IInstaller? installer = null) where TScope : LifetimeScope, new()
 	{
 		var child = new TScope();
 		child.SetName("LifetimeScope (Child)");
@@ -388,7 +388,7 @@ public partial class LifetimeScope : Node
 	}
 
 	/// <summary>Creates, attaches, and builds a plain child <see cref="LifetimeScope"/>.</summary>
-	public LifetimeScope CreateChild(IInstaller installer = null) => CreateChild<LifetimeScope>(installer);
+	public LifetimeScope CreateChild(IInstaller? installer = null) => CreateChild<LifetimeScope>(installer);
 
 	/// <summary>Creates a child scope configured by <paramref name="installation"/>.</summary>
 	public TScope CreateChild<TScope>(Action<IContainerBuilder> installation) where TScope : LifetimeScope, new()
@@ -399,7 +399,7 @@ public partial class LifetimeScope : Node
 
 	/// <summary>Instantiates a packed scene, finds its child scope, and attaches that scope to this scope.</summary>
 	/// <returns>The discovered scope, or <see langword="null"/> when the scene contains none of the requested type.</returns>
-	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, IInstaller installer = null) where TScope : LifetimeScope
+	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, IInstaller? installer = null) where TScope : LifetimeScope
 	{
 		ThrowHelper.ThrowArgumentNullIfNull(scene);
 
@@ -408,12 +408,12 @@ public partial class LifetimeScope : Node
 		// The scope is normally the scene's root - the direct analogue of VContainer's
 		// prefab-with-a-LifetimeScope-component - but scenes that wrap it in a plain root
 		// node are tolerated too.
-		TScope child = sceneNode as TScope ?? sceneNode.GetChildren().OfType<TScope>().FirstOrDefault();
+		TScope child = (sceneNode as TScope ?? sceneNode.GetChildren().OfType<TScope>().FirstOrDefault())!;
 		if (child == null)
 		{
 			GD.PushWarning($"PackedScene {scene.ResourcePath} does not contain a {typeof(TScope).Name}.");
 			sceneNode.Free();
-			return null;
+			return null!;
 		}
 
 		if (installer != null)
@@ -465,11 +465,11 @@ public partial class LifetimeScope : Node
 		EntryPointsBuilder.EnsureDispatcherRegistered(builder);
 	}
 
-	protected virtual LifetimeScope FindParent() => null;
+	protected virtual LifetimeScope FindParent() => null!;
 
 	LifetimeScope GetRuntimeParent()
 	{
-		if (IsRoot) return null;
+		if (IsRoot) return null!;
 
 		if (ParentReference.Object != null)
 			return ParentReference.Object;
@@ -514,7 +514,7 @@ public partial class LifetimeScope : Node
 		// normalises to its own type. It has no parent to find.
 		if (ParentReference.Type == GetType())
 		{
-			return null;
+			return null!;
 		}
 
 		// Find in scene via type

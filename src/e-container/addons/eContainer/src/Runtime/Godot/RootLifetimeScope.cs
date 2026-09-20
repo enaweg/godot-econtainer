@@ -8,8 +8,8 @@ namespace Enaweg.Container.Godot;
 [GlobalClass]
 public sealed partial class RootLifetimeScope : LifetimeScope
 {
-	private Window treeRoot;
-	private static RootLifetimeScope _instance;
+	private Window treeRoot = null!;
+	private static RootLifetimeScope _instance = null!;
 
 	public override void _EnterTree()
 	{
@@ -37,7 +37,7 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 		if (treeRoot != null)
 		{
 			treeRoot.ChildEnteredTree -= OnChildEnteredTreeRoot;
-			treeRoot = null;
+			treeRoot = null!;
 		}
 
 		// base._ExitTree() is what disposes the container. Without it the root scope - and
@@ -51,8 +51,8 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 			// nodes reachable from a static list across a scene reload.
 			WaitingList.Clear();
 
-			_instance = null;
-			Root = null;
+			_instance = null!;
+			Root = null!;
 		}
 	}
 

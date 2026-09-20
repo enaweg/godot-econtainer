@@ -24,11 +24,12 @@ public static class ContainerBuilderNodeExtensions
 		Lifetime lifetime)
 	{
 		EntryPointsBuilder.EnsureDispatcherRegistered(builder);
-		return builder.Register(new FuncRegistrationBuilder(container => implementationConfiguration(container),
+		return builder.Register(new FuncRegistrationBuilder(container => implementationConfiguration(container)!,
 			typeof(TInterface), lifetime)).AsImplementedInterfaces();
 	}
 
 	/// <summary>Registers the handler used for exceptions thrown by entry-point callbacks in this scope.</summary>
+	/// <param name="builder">The container receiving the handler registration.</param>
 	/// <param name="exceptionHandler">The scope-local exception sink.</param>
 	public static void RegisterEntryPointExceptionHandler(this IContainerBuilder builder, Action<Exception> exceptionHandler)
 	{
@@ -39,6 +40,7 @@ public static class ContainerBuilderNodeExtensions
 	/// Registers several entry points sharing one lifetime:
 	/// <c>builder.UseEntryPoints(e =&gt; { e.Add&lt;Foo&gt;(); e.OnException(Log); })</c>.
 	/// </summary>
+	/// <param name="builder">The container receiving the entry-point registrations.</param>
 	/// <param name="configuration">Adds entry points and optionally configures their exception handler.</param>
 	/// <param name="lifetime">The lifetime applied to entry points added by <paramref name="configuration"/>.</param>
 	public static void UseEntryPoints(
@@ -50,11 +52,12 @@ public static class ContainerBuilderNodeExtensions
 
 	/// <summary>Registers an existing Godot node and injects it when the container is built.</summary>
 	/// <typeparam name="TInterface">The service type under which <paramref name="node"/> is resolved.</typeparam>
+	/// <param name="builder">The container receiving the node registration.</param>
 	/// <param name="node">The existing node instance to inject and register.</param>
 	/// <remarks>The node is resolved by a build callback so injection occurs even if no other service requests it.</remarks>
 	public static RegistrationBuilder RegisterNode<TInterface>(this IContainerBuilder builder, TInterface node)
 	{
-		var registrationBuilder = new NodeRegistrationBuilder(node).As(typeof(TInterface));
+		var registrationBuilder = new NodeRegistrationBuilder(node!).As(typeof(TInterface));
 		// Force inject execution
 		builder.RegisterBuildCallback(container => container.Resolve<TInterface>());
 		return builder.Register(registrationBuilder);

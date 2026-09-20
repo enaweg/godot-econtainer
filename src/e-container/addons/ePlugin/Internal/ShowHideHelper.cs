@@ -19,8 +19,11 @@ public static class ShowHideHelper
             if (dirInfo.Name.StartsWith('.'))
             {
                 // remove for posix systems
-                var newPath = Path.Combine(dirInfo.Parent.FullName, dirInfo.Name.Substring(1));
-                plugin.Logger.Log(
+                if (dirInfo.Parent is null)
+                    return;
+
+                var newPath = Path.Combine(dirInfo.Parent.FullName, dirInfo.Name[1..]);
+                plugin.Logger?.Log(
                     $"Showing: <plugin>{dirInfo.FullName.Replace(baseDirectory, "")} (to <plugin>{newPath.Replace(baseDirectory, "")})");
                 dirInfo.MoveTo(newPath);
             }
@@ -35,6 +38,9 @@ public static class ShowHideHelper
         var baseDirectory = ProjectSettings.GlobalizePath(plugin.Directory);
 
         string pathToShownFile;
+        if (string.IsNullOrEmpty(dirname))
+            return;
+
         if (filename.StartsWith('.'))
         {
             pathToShownFile = Path.Combine(dirname, $"{filename.Substring(1)}");
@@ -51,10 +57,13 @@ public static class ShowHideHelper
             if (!dirInfoShown.Name.StartsWith('.'))
             {
                 // prefix with '.' for posix systems
+                if (dirInfoShown.Parent is null)
+                    return;
+
                 var newPath = Path.Combine(dirInfoShown.Parent.FullName, $".{dirInfoShown.Name}");
 
 
-                plugin.Logger.Log(
+                plugin.Logger?.Log(
                     $"Hiding: <plugin>{dirInfoShown.FullName.Replace(baseDirectory, "")} (to <plugin>{newPath.Replace(baseDirectory, "")})");
                 dirInfoShown.MoveTo(newPath);
             }
