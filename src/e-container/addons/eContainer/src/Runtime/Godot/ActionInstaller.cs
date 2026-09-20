@@ -1,4 +1,5 @@
 using System;
+using Enaweg.Container.Internal;
 using VContainer;
 
 namespace Enaweg.Container.Godot;
@@ -11,6 +12,8 @@ public class ActionInstaller : IInstaller
 
 	public ActionInstaller(Action<IContainerBuilder> configuration)
 	{
+		// Rejected here rather than at Install(), which runs deep inside a container build.
+		ThrowHelper.ThrowArgumentNullIfNull(configuration);
 		this.configuration = configuration;
 	}
 

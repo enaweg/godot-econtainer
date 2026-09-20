@@ -1,23 +1,31 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Enaweg.Container.Internal;
 using Godot;
-using Godot.Collections;
 using VContainer;
-using Array = System.Array;
 
 namespace Enaweg.Container.Godot;
 
 
-public partial class LifetimeScope : Node, IDisposable
+// Node already implements IDisposable - re-declaring it here only served to give the former
+// `new Dispose()` the interface slot, diverging from Godot's own disposal path.
+//
+// [GlobalClass] so a plain LifetimeScope can be picked by name in the editor's Create Node
+// dialog, instead of having to be created as a Node with the script attached by hand.
+[GlobalClass]
+public partial class LifetimeScope : Node
 {
 	public readonly struct ParentOverrideScope : IDisposable
 	{
+		readonly LifetimeScope pushed;
+
 		public ParentOverrideScope(LifetimeScope nextParent)
 		{
+			pushed = nextParent;
 			lock (SyncRoot)
 			{
-				GlobalOverrideParents.Push(nextParent);
+				GlobalOverrideParents.Add(nextParent);
 			}
 		}
 
@@ -25,48 +33,86 @@ public partial class LifetimeScope : Node, IDisposable
 		{
 			lock (SyncRoot)
 			{
-				GlobalOverrideParents.Pop();
+				RemoveLast(GlobalOverrideParents, pushed);
 			}
 		}
 	}
 
 	public readonly struct ExtraInstallationScope : IDisposable
 	{
+		readonly IInstaller pushed;
+
 		public ExtraInstallationScope(IInstaller installer)
 		{
+			pushed = installer;
 			lock (SyncRoot)
-				GlobalExtraInstallers.Push(installer);
+				GlobalExtraInstallers.Add(installer);
 		}
 
-		void IDisposable.Dispose()
+		// Public, matching ParentOverrideScope. As an explicit interface implementation `using`
+		// had to box the struct to reach it.
+		public void Dispose()
 		{
 			lock (SyncRoot)
-				GlobalExtraInstallers.Pop();
+				RemoveLast(GlobalExtraInstallers, pushed);
 		}
 	}
 
 	public ParentReference ParentReference;
 
 	[Export]
-	public string parentTypeName
+	public string ParentTypeName
 	{
 		get => ParentReference.TypeName;
 		set => ParentReference.TypeName = value;
 	}
 
-	[Export] public bool autoRun = true;
-	[Export] protected Node[] autoInjectGameObjects = Array.Empty<Node>();
-	string scopeName;
+	[Export] public bool AutoRun = true;
 
-	static readonly Stack<LifetimeScope> GlobalOverrideParents = new Stack<LifetimeScope>();
-	static readonly Stack<IInstaller> GlobalExtraInstallers = new Stack<IInstaller>();
+	/// <summary>Nodes injected from this scope's container as soon as it is built.</summary>
+	[Export] protected Node[] AutoInjectNodes = Array.Empty<Node>();
+
+	// Used as stacks, but list-backed so disposal can remove the entry that scope actually
+	// pushed instead of whatever happens to be on top. Stack.Pop() threw on an empty stack
+	// after a double dispose, and popped someone else's entry when two overlapping scopes were
+	// disposed out of order - both corrupt state shared by every scope being built.
+	static readonly List<LifetimeScope> GlobalOverrideParents = new List<LifetimeScope>();
+	static readonly List<IInstaller> GlobalExtraInstallers = new List<IInstaller>();
 	static readonly object SyncRoot = new object();
 
-	static LifetimeScope Create(IInstaller installer = null)
+	/// <summary>
+	/// Removes the topmost entry identical to <paramref name="item"/>, or nothing if it is no
+	/// longer there - a second Dispose() on the same scope is a no-op rather than a corruption.
+	/// </summary>
+	static void RemoveLast<T>(List<T> stack, T item) where T : class
 	{
+		for (int i = stack.Count - 1; i >= 0; i--)
+		{
+			if (ReferenceEquals(stack[i], item))
+			{
+				stack.RemoveAt(i);
+				return;
+			}
+		}
+	}
+
+	static LifetimeScope Create(IInstaller installer)
+	{
+		if (Root == null)
+		{
+			throw new InvalidOperationException(
+				$"Cannot create a {nameof(LifetimeScope)} before the eContainer autoload has entered the tree.");
+		}
+
 		var node = new LifetimeScope();
 		node.SetName("LifetimeScope");
-		node.localExtraInstallers.Add(installer);
+		// A null installer would only surface later, as a NullReferenceException inside
+		// InstallTo(); the no-installer case is just an empty list.
+		if (installer != null)
+		{
+			node.localExtraInstallers.Add(installer);
+		}
+
 		Root.AddChild(node);
 		return node;
 	}
@@ -90,13 +136,9 @@ public partial class LifetimeScope : Node, IDisposable
 			return Root;
 		}
 
-		Array<Node> rootChildren = Root.GetChildren(true);
-		foreach (Node child in rootChildren)
+		if (FindInSubtree(Root, type) is { } scopeUnderRoot)
 		{
-			if (child.GetType() == type)
-			{
-				return child as LifetimeScope;
-			}
+			return scopeUnderRoot;
 		}
 
 		// CurrentScene is null while autoloads enter the tree before the main scene has been
@@ -113,11 +155,35 @@ public partial class LifetimeScope : Node, IDisposable
 			return lifetimeScope;
 		}
 
-		foreach (Node child in currentScene.GetChildren())
+		return FindInSubtree(currentScene, type);
+	}
+
+	/// <summary>
+	/// Depth-first search of <paramref name="current"/>'s descendants for a scope of exactly
+	/// <paramref name="type"/>.
+	/// </summary>
+	/// <remarks>
+	/// Searching the whole subtree, not just direct children: a scope attached partway down a
+	/// scene - the usual layout for one that owns a sub-hierarchy - was invisible to parent
+	/// lookup before, so anything declaring it as a parent type queued forever.
+	/// </remarks>
+	static LifetimeScope FindInSubtree(Node current, Type type)
+	{
+		int childCount = current.GetChildCount(true);
+		for (int i = 0; i < childCount; i++)
 		{
-			if (child.GetType() == type)
+			Node child = current.GetChild(i, true);
+
+			// `is LifetimeScope` first: ParentReference.Type is resolved from a name stored in
+			// the scene, so it is not guaranteed to name a scope type at all.
+			if (child is LifetimeScope scope && scope.GetType() == type)
 			{
-				return child as LifetimeScope;
+				return scope;
+			}
+
+			if (FindInSubtree(child, type) is { } found)
+			{
+				return found;
 			}
 		}
 
@@ -146,19 +212,22 @@ public partial class LifetimeScope : Node, IDisposable
 		try
 		{
 			Parent = GetRuntimeParent();
-			if (autoRun)
+			if (AutoRun)
 			{
 				Build();
 			}
 		}
 		catch (VContainerParentTypeReferenceNotFound) when (!IsRoot)
 		{
-			if (RootLifetimeScope.WaitingListContains(this))
+			// Queue up and wait for the declared parent to enter the tree. EnqueueReady is
+			// idempotent-safe here: _ExitTree dequeues via DisposeCore, so a scope cannot
+			// re-enter the tree while still listed. This used to rethrow in that case, which
+			// only threw across Godot's native callback boundary - where it is logged and
+			// swallowed, never reaching the AddChild caller.
+			if (!RootLifetimeScope.WaitingListContains(this))
 			{
-				throw;
+				RootLifetimeScope.EnqueueReady(this);
 			}
-
-			RootLifetimeScope.EnqueueReady(this);
 		}
 	}
 
@@ -170,46 +239,78 @@ public partial class LifetimeScope : Node, IDisposable
 	protected virtual void Configure(IContainerBuilder builder) { }
 
 
-	public new void Dispose()
+	// Overrides GodotObject.Dispose(bool) rather than hiding it with `new`. Hiding put this
+	// logic in a second, parallel virtual slot: Godot's own disposal path reached the base
+	// slot and skipped DisposeCore, while this slot never chained to the base at all - it
+	// suppressed the finalizer without ever releasing the native binding.
+	protected override void Dispose(bool disposing)
 	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
+		if (disposing)
+		{
+			DisposeCore();
 
-	protected new virtual void Dispose(bool disposing)
-	{
-		if (!disposing)
-			return;
+			// Unchanged contract: disposing a scope also gets rid of its node. Deferred
+			// rather than immediate, because Dispose() may be called from a signal handler
+			// or a _Process callback, where freeing a node outright is not safe.
+			//
+			// Must happen before base.Dispose(), which clears the native pointer this needs.
+			if (IsInstanceValid(this) && !IsQueuedForDeletion())
+			{
+				QueueFree();
+			}
+		}
 
-		DisposeCore();
-		QueueFree();
+		base.Dispose(disposing);
 	}
 
 	void DisposeCore()
 	{
 		Container?.Dispose();
 		Container = null;
+		// Cleared too, so a torn-down scope stops keeping its parent node reachable. _EnterTree
+		// resolves it again from scratch if this scope re-enters the tree.
+		Parent = null;
 		RootLifetimeScope.CancelReady(this);
 	}
 
 	public void Build()
 	{
+		// Building twice would silently orphan the first container - its singletons never
+		// disposed - and dispatch this scope's entry points a second time, so every tickable
+		// would run twice per frame. Build() is reachable from _EnterTree, from the waiting
+		// list flush and from user code, so it has to be idempotent.
+		if (Container != null)
+			return;
+
 		Parent ??= GetRuntimeParent();
 
 		if (Parent != null)
 		{
-			if (Parent.IsRoot)
+			if (Parent.Container == null)
 			{
+				// A parent cannot host a child scope before it has a container of its own.
+				// This used to be limited to the root scope, which left every other unbuilt
+				// parent - an explicit ParentReference.Object, or a parent with AutoRun off -
+				// to fail with a NullReferenceException below.
+				Parent.Build();
+
+				// Parent.Build() flushes the waiting list, which may have built this scope
+				// re-entrantly. The guard above already ran, so re-check before continuing.
+				if (Container != null)
+					return;
+
 				if (Parent.Container == null)
-					Parent.Build();
+				{
+					throw new VContainerException(Parent.GetType(),
+						$"{Name} cannot build: its parent scope {Parent.Name} ({Parent.GetType()}) has no container.");
+				}
 			}
 
-			// ReSharper disable once PossibleNullReferenceException
 			Parent.Container.CreateScope(builder =>
 			{
 				builder.RegisterBuildCallback(SetContainer);
 				builder.ApplicationOrigin = this;
-				builder.Diagnostics = null; // TODO: DiagnosticsContext.GetCollector(scopeName),
+				builder.Diagnostics = null; // TODO: DiagnosticsContext.GetCollector(Name),
 				InstallTo(builder);
 			});
 		}
@@ -218,7 +319,7 @@ public partial class LifetimeScope : Node, IDisposable
 			var builder = new ContainerBuilder
 			{
 				ApplicationOrigin = this,
-				Diagnostics = null, // TODO: DiagnosticsContext.GetCollector(scopeName),
+				Diagnostics = null, // TODO: DiagnosticsContext.GetCollector(Name),
 			};
 
 			builder.RegisterBuildCallback(SetContainer);
@@ -236,12 +337,12 @@ public partial class LifetimeScope : Node, IDisposable
 	}
 
 	// Called by RootLifetimeScope when a scope this one was queued behind may have become
-	// available. Mirrors _EnterTree: resolve the parent, and build only when autoRun is set.
+	// available. Mirrors _EnterTree: resolve the parent, and build only when AutoRun is set.
 	// Throws VContainerParentTypeReferenceNotFound if the parent still is not reachable.
 	internal void NotifyParentAvailable()
 	{
 		Parent ??= GetRuntimeParent();
-		if (autoRun)
+		if (AutoRun)
 		{
 			Build();
 		}
@@ -271,6 +372,8 @@ public partial class LifetimeScope : Node, IDisposable
 
 	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, IInstaller installer = null) where TScope : LifetimeScope
 	{
+		ThrowHelper.ThrowArgumentNullIfNull(scene);
+
 		Node sceneNode = scene.Instantiate();
 
 		// The scope is normally the scene's root - the direct analogue of VContainer's
@@ -320,9 +423,11 @@ public partial class LifetimeScope : Node, IDisposable
 
 		lock (SyncRoot)
 		{
-			foreach (IInstaller installer in GlobalExtraInstallers)
+			// Back to front: these are installed most-recently-enqueued first, which is the
+			// order the Stack this list replaced iterated in.
+			for (int i = GlobalExtraInstallers.Count - 1; i >= 0; i--)
 			{
-				installer.Install(builder);
+				GlobalExtraInstallers[i].Install(builder);
 			}
 		}
 
@@ -352,51 +457,49 @@ public partial class LifetimeScope : Node, IDisposable
 
 		// An EnqueueParent() override is an explicit, caller-scoped instruction, so it wins
 		// over a parent type declared in the scene. Checking it after the type lookup below
-		// meant the override was silently ignored for any scope with parentTypeName set.
+		// meant the override was silently ignored for any scope with ParentTypeName set.
 		lock (SyncRoot)
 		{
 			if (GlobalOverrideParents.Count > 0)
 			{
-				return GlobalOverrideParents.Peek();
+				return GlobalOverrideParents[^1];
 			}
 		}
 
-		// Find in scene via type
-		if (ParentReference.Type != null && ParentReference.Type != GetType())
-		{
-			if (Find(ParentReference.Type) is { Container: not null } foundScope)
-				return foundScope;
-
-			throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
-		}
-
-		if (ParentReference.Type == null)
-		{
-			ParentReference = ParentReference.Create<RootLifetimeScope>(GetType());
-		}
-
+		// Normalise the declared type before looking it up: an unset parent type, or one
+		// naming this scope's own type, both mean "parent to the root scope". This used to be
+		// written as two identical copies of the lookup below, one on either side of the
+		// normalisation.
 		if (ParentReference.Type == GetType())
 		{
 			GD.PushWarning("Parent reference cannot be same as self.");
+		}
+
+		if (ParentReference.Type == null || ParentReference.Type == GetType())
+		{
 			ParentReference = ParentReference.Create<RootLifetimeScope>(GetType());
 		}
-		
-		if (ParentReference.Type != null && ParentReference.Type != GetType())
-		{
-			if (Find(ParentReference.Type) is { Container: not null } foundScope)
-				return foundScope;
 
-			throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
+		// Only a stray RootLifetimeScope - one that lost the singleton race and so is not Root -
+		// normalises to its own type. It has no parent to find.
+		if (ParentReference.Type == GetType())
+		{
+			return null;
 		}
-		return null;
+
+		// Find in scene via type
+		if (Find(ParentReference.Type) is { Container: not null } foundScope)
+			return foundScope;
+
+		throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
 	}
 
 	void AutoInjectAll()
 	{
-		if (autoInjectGameObjects == null)
+		if (AutoInjectNodes == null)
 			return;
 
-		foreach (Node target in autoInjectGameObjects)
+		foreach (Node target in AutoInjectNodes)
 		{
 			if (target != null) // Check missing reference
 			{

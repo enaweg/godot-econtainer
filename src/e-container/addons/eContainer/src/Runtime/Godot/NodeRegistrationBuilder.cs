@@ -1,4 +1,5 @@
 using System;
+using Enaweg.Container.Internal;
 using Godot;
 using VContainer;
 using VContainer.Internal;
@@ -33,9 +34,17 @@ public sealed class NodeRegistrationBuilder : RegistrationBuilder
 	SceneTree scene;
 
 	internal NodeRegistrationBuilder(object instance)
-		: base(instance.GetType(), Lifetime.Singleton)
+		: base(GetInstanceType(instance), Lifetime.Singleton)
 	{
 		this.instance = instance;
+	}
+
+	// Named here rather than dereferenced in the base() call, where a null would have surfaced
+	// as a bare NullReferenceException from RegisterNode.
+	static Type GetInstanceType(object instance)
+	{
+		ThrowHelper.ThrowArgumentNullIfNull(instance);
+		return instance.GetType();
 	}
 
 	internal NodeRegistrationBuilder(in SceneTree scene, Type implementationType)
@@ -67,18 +76,24 @@ public sealed class NodeRegistrationBuilder : RegistrationBuilder
 		}
 		else if (scene != null)
 		{
-			throw new NotImplementedException();
+			// These three stay stubbed deliberately (pinned by NodeRegistrationBuilderTest).
+			// The messages name the overload, because the throw lands at container-build time,
+			// far from the RegisterNode call that chose this path.
+			throw new NotImplementedException(
+				$"Registering {ImplementationType} by searching the scene tree is not implemented yet.");
 			// provider = new FindNodeProvider(ImplementationType, Parameters, in scene, in destination);
 		}
 		else if (packedSceneFinder != null)
 		{
-			throw new NotImplementedException();
+			throw new NotImplementedException(
+				$"Registering {ImplementationType} from a PackedScene is not implemented yet.");
 			// var injector = InjectorCache.GetOrBuild(ImplementationType);
 			// provider = new PackedSceneNodeProvider(packedSceneFinder, injector, Parameters, in destination);
 		}
 		else
 		{
-			throw new NotImplementedException();
+			throw new NotImplementedException(
+				$"Registering {ImplementationType} as a newly created node is not implemented yet.");
 			// var injector = InjectorCache.GetOrBuild(ImplementationType);
 			// provider = new NewNodeProvider(ImplementationType, injector, Parameters, in destination, gameObjectName);
 		}

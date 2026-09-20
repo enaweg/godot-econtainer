@@ -15,13 +15,16 @@ public partial class LifetimeScopeTest
 {
     sealed partial class ConfiguringScope : LifetimeScope
     {
+        public int ConfigureCount { get; private set; }
+
         protected override void Configure(IContainerBuilder builder)
         {
+            ConfigureCount++;
             builder.RegisterInstance("configured");
         }
 
-        public void SetAutoInject(Node[] nodes) => autoInjectGameObjects = nodes;
-        public void SetAutoRun(bool value) => autoRun = value;
+        public void SetAutoInject(Node[] nodes) => AutoInjectNodes = nodes;
+        public void SetAutoRun(bool value) => AutoRun = value;
     }
 
     sealed partial class FindParentScope : LifetimeScope
@@ -243,7 +246,7 @@ public partial class LifetimeScopeTest
     }
 
     [TestCase]
-    public void Build_InjectsConfiguredAutoInjectGameObjects()
+    public void Build_InjectsConfiguredAutoInjectNodes()
     {
         var scope = AutoFree(new ConfiguringScope())!;
         var injectable = AutoFree(new InjectableNode())!;
@@ -272,7 +275,7 @@ public partial class LifetimeScopeTest
 
     // EnqueueParent is an explicit, caller-scoped instruction, so it must beat a parent type
     // declared on the scope. It used to be checked only after the declared-type lookup, which
-    // meant it was silently ignored for any scope with parentTypeName set.
+    // meant it was silently ignored for any scope with ParentTypeName set.
     [TestCase]
     public void EnqueueParent_OverridesADeclaredParentType()
     {
@@ -305,6 +308,80 @@ public partial class LifetimeScopeTest
         AssertObject(scope.Container.Resolve<string>()).IsEqual("global-extra");
     }
 
+    // The override stacks are shared by every scope being built, so a misused scope handle must
+    // not corrupt them. Disposing twice used to pop a second, unrelated entry - or throw
+    // InvalidOperationException off an empty stack.
+    [TestCase]
+    public void EnqueueParent_DisposedTwice_LeavesTheOverrideStackIntact()
+    {
+        var outerParent = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(outerParent);
+        var innerParent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(innerParent);
+
+        using (LifetimeScope.EnqueueParent(outerParent))
+        {
+            var inner = LifetimeScope.EnqueueParent(innerParent);
+            inner.Dispose();
+            inner.Dispose();
+
+            // The outer override must still be the one in effect.
+            var scope = AutoFree(new LifetimeScope())!;
+            Root.AddChild(scope);
+            AssertObject(scope.Parent).IsSame(outerParent);
+        }
+
+        // And it must be gone once its own scope ends, leaving the default root parent.
+        var afterAll = AutoFree(new LifetimeScope())!;
+        Root.AddChild(afterAll);
+        AssertObject(afterAll.Parent).IsSame(Root);
+    }
+
+    // Disposal order is the caller's business; removing "whatever is on top" silently stole
+    // another scope's override.
+    [TestCase]
+    public void EnqueueParent_DisposedOutOfOrder_RemovesTheRightEntry()
+    {
+        var first = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(first);
+        var second = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(second);
+
+        var outer = LifetimeScope.EnqueueParent(first);
+        var inner = LifetimeScope.EnqueueParent(second);
+
+        // Reversed: the outer handle goes first, so only `second` should remain in effect.
+        outer.Dispose();
+
+        var scope = AutoFree(new LifetimeScope())!;
+        Root.AddChild(scope);
+        AssertObject(scope.Parent).IsSame(second);
+
+        inner.Dispose();
+
+        var afterAll = AutoFree(new LifetimeScope())!;
+        Root.AddChild(afterAll);
+        AssertObject(afterAll.Parent).IsSame(Root);
+    }
+
+    // Two overlapping global installers must both apply, and each must stop applying when its
+    // own handle is disposed regardless of the order.
+    [TestCase]
+    public void Enqueue_DisposedOutOfOrder_RemovesTheRightInstaller()
+    {
+        var outer = LifetimeScope.Enqueue(b => b.RegisterInstance("outer"));
+        var inner = LifetimeScope.Enqueue(b => b.RegisterInstance(42));
+
+        outer.Dispose();
+
+        var scope = AutoFree(new LifetimeScope())!;
+        Root.AddChild(scope);
+        AssertInt(scope.Container.Resolve<int>()).IsEqual(42);
+        AssertThrown(() => scope.Container.Resolve<string>()).IsInstanceOf<VContainerException>();
+
+        inner.Dispose();
+    }
+
     [TestCase]
     public void Dispose_DisposesContainer()
     {
@@ -315,5 +392,71 @@ public partial class LifetimeScopeTest
         scope.Dispose();
 
         AssertObject(scope.Container).IsNull();
+    }
+
+    // Dispose(bool) now overrides GodotObject.Dispose(bool) instead of hiding it with `new`, so
+    // it also chains to the base implementation. Disposing a scope must still get rid of its
+    // node, which base.Dispose() alone does not do for a node that is in the tree.
+    [TestCase]
+    public void Dispose_QueuesTheNodeForDeletion()
+    {
+        var scope = new ConfiguringScope();
+        Root.AddChild(scope);
+        var instanceId = scope.GetInstanceId();
+
+        scope.Dispose();
+
+        // Read through a fresh handle: the scope's own wrapper is disposed by now.
+        AssertBool(GodotObject.IsInstanceIdValid(instanceId)).IsTrue();
+        var stillLive = (Node)GodotObject.InstanceFromId(instanceId)!;
+        AssertBool(stillLive.IsQueuedForDeletion()).IsTrue();
+    }
+
+    // Build() is reachable from _EnterTree, from the waiting-list flush and from user code.
+    // Without a guard the second call silently orphaned the first container and dispatched the
+    // scope's entry points again.
+    [TestCase]
+    public void Build_CalledAgainAfterBuilding_IsANoOp()
+    {
+        var scope = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(scope);
+        var container = scope.Container;
+        AssertObject(container).IsNotNull();
+
+        scope.Build();
+
+        AssertObject(scope.Container).IsSame(container);
+        AssertInt(scope.ConfigureCount).IsEqual(1);
+    }
+
+    // Parent lookup used to check only the direct children of the root scope and of the current
+    // scene, so a scope sitting any deeper - the usual layout for one owning a sub-hierarchy -
+    // was unreachable and anything declaring it as a parent type queued forever.
+    [TestCase]
+    public void Find_LocatesAScopeNestedBelowTheFirstLevel()
+    {
+        var holder = AutoFree(new Node())!;
+        Root.AddChild(holder);
+        var deeper = AutoFree(new Node())!;
+        holder.AddChild(deeper);
+
+        var nested = AutoFree(new NamedTargetScope())!;
+        deeper.AddChild(nested);
+
+        AssertObject(LifetimeScope.Find<NamedTargetScope>()).IsSame(nested);
+    }
+
+    // Reading ParentTypeName used to re-derive it from the resolved Type, which is null whenever
+    // the named type did not load - a renamed class, a broken build. The inspector reading the
+    // property, or Godot serialising the scene, was then enough to write that loss to disk.
+    [TestCase]
+    public void ParentTypeName_WithATypeThatDoesNotResolve_SurvivesBeingReadBack()
+    {
+        var scope = AutoFree(new LifetimeScope())!;
+
+        scope.ParentTypeName = "Game.Scopes.DeletedScope";
+
+        AssertString(scope.ParentTypeName).IsEqual("Game.Scopes.DeletedScope");
+        AssertObject(scope.ParentReference.Type).IsNull();
     }
 }

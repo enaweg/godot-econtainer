@@ -77,6 +77,24 @@ public class FrameProviderDispatcherTest
         }
     }
 
+    // The frame and time providers are process-wide statics, so a second dispatcher would
+    // advance GodotTimeProvider.time twice per frame and Run() every registered work item
+    // twice. The duplicate disables its own processing instead.
+    [TestCase]
+    public void SecondDispatcher_DisablesItsOwnProcessing()
+    {
+        var second = AutoFree(new FrameProviderDispatcher())!;
+
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(second);
+
+        AssertBool(second.IsProcessing()).IsFalse();
+        AssertBool(second.IsPhysicsProcessing()).IsFalse();
+
+        // The real dispatcher is untouched and still owns the Delta boxes.
+        AssertObject(GodotFrameProvider.Process.Delta).IsNotNull();
+        AssertObject(GodotFrameProvider.PhysicsProcess.Delta).IsNotNull();
+    }
+
     // Deregisters itself after the first tick so the shared provider is left clean.
     sealed class CallbackWorkItem(System.Action onTick, bool runOnce) : IFrameRunnerWorkItem
     {

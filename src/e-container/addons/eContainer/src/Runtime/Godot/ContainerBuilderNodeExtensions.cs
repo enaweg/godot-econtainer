@@ -28,6 +28,16 @@ public static class ContainerBuilderNodeExtensions
 		builder.RegisterInstance(new EntryPointExceptionHandler(exceptionHandler));
 	}
 
+	/// <summary>
+	/// Registers several entry points sharing one lifetime:
+	/// <c>builder.UseEntryPoints(e =&gt; { e.Add&lt;Foo&gt;(); e.OnException(Log); })</c>.
+	/// </summary>
+	public static void UseEntryPoints(
+		this IContainerBuilder builder,
+		Action<EntryPointsBuilder> configuration,
+		Lifetime lifetime = Lifetime.Singleton)
+		=> EntryPointsBuilder.UseEntryPoints(builder, configuration, lifetime);
+
 
 	public static RegistrationBuilder RegisterNode<TInterface>(this IContainerBuilder builder, TInterface node)
 	{

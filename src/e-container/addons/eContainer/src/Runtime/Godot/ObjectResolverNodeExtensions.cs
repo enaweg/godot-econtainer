@@ -1,3 +1,4 @@
+using Enaweg.Container.Internal;
 using Godot;
 using VContainer;
 
@@ -37,6 +38,9 @@ public static class ObjectResolverNodeExtensions
 
 	public static T Instantiate<T>(this IObjectResolver resolver, PackedScene prefab, Node parent) where T : Node
 	{
+		ThrowHelper.ThrowArgumentNullIfNull(prefab);
+		ThrowHelper.ThrowArgumentNullIfNull(parent);
+
 		var instance = prefab.Instantiate<T>();
 		// Inject before the node enters the tree. AddChild() runs _EnterTree and _Ready
 		// synchronously, and those callbacks are the most likely place to use an injected

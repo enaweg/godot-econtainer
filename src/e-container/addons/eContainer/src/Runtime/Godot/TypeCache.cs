@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -7,7 +8,7 @@ namespace Enaweg.Container.Godot;
 
 public static class TypeCache
 {
-	private static readonly Dictionary<RuntimeTypeHandle, List<Type>> cache = new Dictionary<RuntimeTypeHandle, List<Type>>();
+	private static readonly ConcurrentDictionary<RuntimeTypeHandle, List<Type>> cache = new ConcurrentDictionary<RuntimeTypeHandle, List<Type>>();
 
 	/// <summary>
 	/// Returns every concrete type assignable to <typeparamref name="T"/>, including interface
@@ -31,9 +32,9 @@ public static class TypeCache
 			.Where(type => baseType.IsAssignableFrom(type) && type != baseType && !type.IsAbstract)
 			.ToList();
 
-		cache[baseType.TypeHandle] = derivedTypeList;
-
-		return derivedTypeList;
+		// GetOrAdd, not an indexer write: two callers racing here would otherwise each hand out
+		// a different list instance for the same key.
+		return cache.GetOrAdd(baseType.TypeHandle, derivedTypeList);
 	}
 
 	/// <summary>

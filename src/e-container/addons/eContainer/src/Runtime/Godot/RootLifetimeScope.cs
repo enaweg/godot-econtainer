@@ -13,7 +13,14 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 	{
 		if (_instance != null)
 		{
-			throw new System.InvalidOperationException("RootLiftScope is already instantiated. Do not instantiate it manually.");
+			// Reported rather than thrown: an exception raised from a Godot node callback is
+			// logged and swallowed at the native boundary, so it never reaches the AddChild
+			// caller and only reads like it is handled. Leaving without claiming the singleton
+			// is what actually protects the live root.
+			GD.PushError(
+				$"A {nameof(RootLifetimeScope)} is already instantiated; this one will stay inert. " +
+				"It is installed by the eContainer autoload and should not be created manually.");
+			return;
 		}
 
 		Root = _instance = this;
@@ -25,16 +32,25 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 
 	public override void _ExitTree()
 	{
-		if (_instance == this)
-		{
-			_instance = null;
-			Root = null;
-		}
-
 		if (treeRoot != null)
 		{
 			treeRoot.ChildEnteredTree -= OnChildEnteredTreeRoot;
 			treeRoot = null;
+		}
+
+		// base._ExitTree() is what disposes the container. Without it the root scope - and
+		// every IDisposable singleton registered in it - survived teardown untouched. It runs
+		// before Root is cleared so that anything disposing here still sees a consistent Root.
+		base._ExitTree();
+
+		if (_instance == this)
+		{
+			// The queue belongs to this root's tree; leaving entries behind would keep freed
+			// nodes reachable from a static list across a scene reload.
+			WaitingList.Clear();
+
+			_instance = null;
+			Root = null;
 		}
 	}
 
@@ -89,7 +105,14 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 		{
 			// Remove first: waking a scope builds it, and Build() re-enters
 			// ReadyWaitingChildren, which must not see this scope again.
-			WaitingList.Remove(waitingScope);
+			//
+			// A failed Remove means that nested flush already woke this scope - it is queued
+			// behind a parent that is itself queued, and the parent's Build() got to it first.
+			// Waking it again here would build it a second time, orphaning the container it
+			// just got and dispatching its entry points twice.
+			if (!WaitingList.Remove(waitingScope))
+				continue;
+
 			Wake(waitingScope);
 		}
 	}
