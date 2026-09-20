@@ -23,8 +23,8 @@ public partial class LifetimeScopeTest
             builder.RegisterInstance("configured");
         }
 
-        public void SetAutoInject(Node[] nodes) => autoInjectGameObjects = nodes;
-        public void SetAutoRun(bool value) => autoRun = value;
+        public void SetAutoInject(Node[] nodes) => AutoInjectNodes = nodes;
+        public void SetAutoRun(bool value) => AutoRun = value;
     }
 
     sealed partial class FindParentScope : LifetimeScope
@@ -246,7 +246,7 @@ public partial class LifetimeScopeTest
     }
 
     [TestCase]
-    public void Build_InjectsConfiguredAutoInjectGameObjects()
+    public void Build_InjectsConfiguredAutoInjectNodes()
     {
         var scope = AutoFree(new ConfiguringScope())!;
         var injectable = AutoFree(new InjectableNode())!;
@@ -275,7 +275,7 @@ public partial class LifetimeScopeTest
 
     // EnqueueParent is an explicit, caller-scoped instruction, so it must beat a parent type
     // declared on the scope. It used to be checked only after the declared-type lookup, which
-    // meant it was silently ignored for any scope with parentTypeName set.
+    // meant it was silently ignored for any scope with ParentTypeName set.
     [TestCase]
     public void EnqueueParent_OverridesADeclaredParentType()
     {
@@ -372,7 +372,7 @@ public partial class LifetimeScopeTest
         AssertObject(LifetimeScope.Find<NamedTargetScope>()).IsSame(nested);
     }
 
-    // Reading parentTypeName used to re-derive it from the resolved Type, which is null whenever
+    // Reading ParentTypeName used to re-derive it from the resolved Type, which is null whenever
     // the named type did not load - a renamed class, a broken build. The inspector reading the
     // property, or Godot serialising the scene, was then enough to write that loss to disk.
     [TestCase]
@@ -380,9 +380,9 @@ public partial class LifetimeScopeTest
     {
         var scope = AutoFree(new LifetimeScope())!;
 
-        scope.parentTypeName = "Game.Scopes.DeletedScope";
+        scope.ParentTypeName = "Game.Scopes.DeletedScope";
 
-        AssertString(scope.parentTypeName).IsEqual("Game.Scopes.DeletedScope");
+        AssertString(scope.ParentTypeName).IsEqual("Game.Scopes.DeletedScope");
         AssertObject(scope.ParentReference.Type).IsNull();
     }
 }

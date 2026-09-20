@@ -252,7 +252,7 @@ public partial class LifetimeScope : Node
 			{
 				// A parent cannot host a child scope before it has a container of its own.
 				// This used to be limited to the root scope, which left every other unbuilt
-				// parent - an explicit ParentReference.Object, or a parent with autoRun off -
+				// parent - an explicit ParentReference.Object, or a parent with AutoRun off -
 				// to fail with a NullReferenceException below.
 				Parent.Build();
 
@@ -272,7 +272,7 @@ public partial class LifetimeScope : Node
 			{
 				builder.RegisterBuildCallback(SetContainer);
 				builder.ApplicationOrigin = this;
-				builder.Diagnostics = null; // TODO: DiagnosticsContext.GetCollector(scopeName),
+				builder.Diagnostics = null; // TODO: DiagnosticsContext.GetCollector(Name),
 				InstallTo(builder);
 			});
 		}
@@ -281,7 +281,7 @@ public partial class LifetimeScope : Node
 			var builder = new ContainerBuilder
 			{
 				ApplicationOrigin = this,
-				Diagnostics = null, // TODO: DiagnosticsContext.GetCollector(scopeName),
+				Diagnostics = null, // TODO: DiagnosticsContext.GetCollector(Name),
 			};
 
 			builder.RegisterBuildCallback(SetContainer);
@@ -299,12 +299,12 @@ public partial class LifetimeScope : Node
 	}
 
 	// Called by RootLifetimeScope when a scope this one was queued behind may have become
-	// available. Mirrors _EnterTree: resolve the parent, and build only when autoRun is set.
+	// available. Mirrors _EnterTree: resolve the parent, and build only when AutoRun is set.
 	// Throws VContainerParentTypeReferenceNotFound if the parent still is not reachable.
 	internal void NotifyParentAvailable()
 	{
 		Parent ??= GetRuntimeParent();
-		if (autoRun)
+		if (AutoRun)
 		{
 			Build();
 		}
@@ -415,12 +415,12 @@ public partial class LifetimeScope : Node
 
 		// An EnqueueParent() override is an explicit, caller-scoped instruction, so it wins
 		// over a parent type declared in the scene. Checking it after the type lookup below
-		// meant the override was silently ignored for any scope with parentTypeName set.
+		// meant the override was silently ignored for any scope with ParentTypeName set.
 		lock (SyncRoot)
 		{
 			if (GlobalOverrideParents.Count > 0)
 			{
-				return GlobalOverrideParents.Peek();
+				return GlobalOverrideParents[^1];
 			}
 		}
 
@@ -454,10 +454,10 @@ public partial class LifetimeScope : Node
 
 	void AutoInjectAll()
 	{
-		if (autoInjectGameObjects == null)
+		if (AutoInjectNodes == null)
 			return;
 
-		foreach (Node target in autoInjectGameObjects)
+		foreach (Node target in AutoInjectNodes)
 		{
 			if (target != null) // Check missing reference
 			{
