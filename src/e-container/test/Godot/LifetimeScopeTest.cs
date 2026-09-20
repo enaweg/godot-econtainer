@@ -308,6 +308,80 @@ public partial class LifetimeScopeTest
         AssertObject(scope.Container.Resolve<string>()).IsEqual("global-extra");
     }
 
+    // The override stacks are shared by every scope being built, so a misused scope handle must
+    // not corrupt them. Disposing twice used to pop a second, unrelated entry - or throw
+    // InvalidOperationException off an empty stack.
+    [TestCase]
+    public void EnqueueParent_DisposedTwice_LeavesTheOverrideStackIntact()
+    {
+        var outerParent = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(outerParent);
+        var innerParent = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(innerParent);
+
+        using (LifetimeScope.EnqueueParent(outerParent))
+        {
+            var inner = LifetimeScope.EnqueueParent(innerParent);
+            inner.Dispose();
+            inner.Dispose();
+
+            // The outer override must still be the one in effect.
+            var scope = AutoFree(new LifetimeScope())!;
+            Root.AddChild(scope);
+            AssertObject(scope.Parent).IsSame(outerParent);
+        }
+
+        // And it must be gone once its own scope ends, leaving the default root parent.
+        var afterAll = AutoFree(new LifetimeScope())!;
+        Root.AddChild(afterAll);
+        AssertObject(afterAll.Parent).IsSame(Root);
+    }
+
+    // Disposal order is the caller's business; removing "whatever is on top" silently stole
+    // another scope's override.
+    [TestCase]
+    public void EnqueueParent_DisposedOutOfOrder_RemovesTheRightEntry()
+    {
+        var first = AutoFree(new NamedTargetScope())!;
+        Root.AddChild(first);
+        var second = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(second);
+
+        var outer = LifetimeScope.EnqueueParent(first);
+        var inner = LifetimeScope.EnqueueParent(second);
+
+        // Reversed: the outer handle goes first, so only `second` should remain in effect.
+        outer.Dispose();
+
+        var scope = AutoFree(new LifetimeScope())!;
+        Root.AddChild(scope);
+        AssertObject(scope.Parent).IsSame(second);
+
+        inner.Dispose();
+
+        var afterAll = AutoFree(new LifetimeScope())!;
+        Root.AddChild(afterAll);
+        AssertObject(afterAll.Parent).IsSame(Root);
+    }
+
+    // Two overlapping global installers must both apply, and each must stop applying when its
+    // own handle is disposed regardless of the order.
+    [TestCase]
+    public void Enqueue_DisposedOutOfOrder_RemovesTheRightInstaller()
+    {
+        var outer = LifetimeScope.Enqueue(b => b.RegisterInstance("outer"));
+        var inner = LifetimeScope.Enqueue(b => b.RegisterInstance(42));
+
+        outer.Dispose();
+
+        var scope = AutoFree(new LifetimeScope())!;
+        Root.AddChild(scope);
+        AssertInt(scope.Container.Resolve<int>()).IsEqual(42);
+        AssertThrown(() => scope.Container.Resolve<string>()).IsInstanceOf<VContainerException>();
+
+        inner.Dispose();
+    }
+
     [TestCase]
     public void Dispose_DisposesContainer()
     {

@@ -33,17 +33,20 @@ public partial class LifetimeScope : Node
 		{
 			lock (SyncRoot)
 			{
-				GlobalOverrideParents.Pop();
+				RemoveLast(GlobalOverrideParents, pushed);
 			}
 		}
 	}
 
 	public readonly struct ExtraInstallationScope : IDisposable
 	{
+		readonly IInstaller pushed;
+
 		public ExtraInstallationScope(IInstaller installer)
 		{
+			pushed = installer;
 			lock (SyncRoot)
-				GlobalExtraInstallers.Push(installer);
+				GlobalExtraInstallers.Add(installer);
 		}
 
 		// Public, matching ParentOverrideScope. As an explicit interface implementation `using`
@@ -51,26 +54,47 @@ public partial class LifetimeScope : Node
 		public void Dispose()
 		{
 			lock (SyncRoot)
-				GlobalExtraInstallers.Pop();
+				RemoveLast(GlobalExtraInstallers, pushed);
 		}
 	}
 
 	public ParentReference ParentReference;
 
 	[Export]
-	public string parentTypeName
+	public string ParentTypeName
 	{
 		get => ParentReference.TypeName;
 		set => ParentReference.TypeName = value;
 	}
 
-	[Export] public bool autoRun = true;
-	[Export] protected Node[] autoInjectGameObjects = Array.Empty<Node>();
-	string scopeName;
+	[Export] public bool AutoRun = true;
 
-	static readonly Stack<LifetimeScope> GlobalOverrideParents = new Stack<LifetimeScope>();
-	static readonly Stack<IInstaller> GlobalExtraInstallers = new Stack<IInstaller>();
+	/// <summary>Nodes injected from this scope's container as soon as it is built.</summary>
+	[Export] protected Node[] AutoInjectNodes = Array.Empty<Node>();
+
+	// Used as stacks, but list-backed so disposal can remove the entry that scope actually
+	// pushed instead of whatever happens to be on top. Stack.Pop() threw on an empty stack
+	// after a double dispose, and popped someone else's entry when two overlapping scopes were
+	// disposed out of order - both corrupt state shared by every scope being built.
+	static readonly List<LifetimeScope> GlobalOverrideParents = new List<LifetimeScope>();
+	static readonly List<IInstaller> GlobalExtraInstallers = new List<IInstaller>();
 	static readonly object SyncRoot = new object();
+
+	/// <summary>
+	/// Removes the topmost entry identical to <paramref name="item"/>, or nothing if it is no
+	/// longer there - a second Dispose() on the same scope is a no-op rather than a corruption.
+	/// </summary>
+	static void RemoveLast<T>(List<T> stack, T item) where T : class
+	{
+		for (int i = stack.Count - 1; i >= 0; i--)
+		{
+			if (ReferenceEquals(stack[i], item))
+			{
+				stack.RemoveAt(i);
+				return;
+			}
+		}
+	}
 
 	static LifetimeScope Create(IInstaller installer)
 	{
@@ -393,9 +417,11 @@ public partial class LifetimeScope : Node
 
 		lock (SyncRoot)
 		{
-			foreach (IInstaller installer in GlobalExtraInstallers)
+			// Back to front: these are installed most-recently-enqueued first, which is the
+			// order the Stack this list replaced iterated in.
+			for (int i = GlobalExtraInstallers.Count - 1; i >= 0; i--)
 			{
-				installer.Install(builder);
+				GlobalExtraInstallers[i].Install(builder);
 			}
 		}
 
