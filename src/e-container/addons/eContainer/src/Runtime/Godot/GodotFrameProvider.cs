@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Enaweg.Container.Internal;
 using Godot;
@@ -81,12 +82,12 @@ public class GodotFrameProvider : FrameProvider
 				{
 					if (!item.MoveNext(frameCount))
 					{
-						list.Remove(i);
+						TryRemove(i);
 					}
 				}
 				catch (Exception ex)
 				{
-					list.Remove(i);
+					TryRemove(i);
 					try
 					{
 						ExceptionHandler?.Publish(ex);
@@ -94,6 +95,25 @@ public class GodotFrameProvider : FrameProvider
 					catch { }
 				}
 			}
+		}
+	}
+
+	/// <summary>
+	/// Removes the slot at <paramref name="index"/>, tolerating a slot that is already empty.
+	/// </summary>
+	/// <remarks>
+	/// MoveNext() can remove this work item itself, directly or by disposing something that
+	/// does. FreeListCore.Remove throws KeyNotFoundException on an empty slot, and from here
+	/// that would escape into _Process and take down the whole frame loop.
+	/// </remarks>
+	void TryRemove(int index)
+	{
+		try
+		{
+			list.Remove(index);
+		}
+		catch (KeyNotFoundException)
+		{
 		}
 	}
 }

@@ -38,7 +38,9 @@ public partial class LifetimeScope : Node
 				GlobalExtraInstallers.Push(installer);
 		}
 
-		void IDisposable.Dispose()
+		// Public, matching ParentOverrideScope. As an explicit interface implementation `using`
+		// had to box the struct to reach it.
+		public void Dispose()
 		{
 			lock (SyncRoot)
 				GlobalExtraInstallers.Pop();
@@ -62,11 +64,23 @@ public partial class LifetimeScope : Node
 	static readonly Stack<IInstaller> GlobalExtraInstallers = new Stack<IInstaller>();
 	static readonly object SyncRoot = new object();
 
-	static LifetimeScope Create(IInstaller installer = null)
+	static LifetimeScope Create(IInstaller installer)
 	{
+		if (Root == null)
+		{
+			throw new InvalidOperationException(
+				$"Cannot create a {nameof(LifetimeScope)} before the eContainer autoload has entered the tree.");
+		}
+
 		var node = new LifetimeScope();
 		node.SetName("LifetimeScope");
-		node.localExtraInstallers.Add(installer);
+		// A null installer would only surface later, as a NullReferenceException inside
+		// InstallTo(); the no-installer case is just an empty list.
+		if (installer != null)
+		{
+			node.localExtraInstallers.Add(installer);
+		}
+
 		Root.AddChild(node);
 		return node;
 	}
