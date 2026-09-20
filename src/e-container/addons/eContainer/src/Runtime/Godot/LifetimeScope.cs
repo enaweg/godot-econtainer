@@ -267,6 +267,9 @@ public partial class LifetimeScope : Node
 	{
 		Container?.Dispose();
 		Container = null;
+		// Cleared too, so a torn-down scope stops keeping its parent node reachable. _EnterTree
+		// resolves it again from scratch if this scope re-enters the tree.
+		Parent = null;
 		RootLifetimeScope.CancelReady(this);
 	}
 
