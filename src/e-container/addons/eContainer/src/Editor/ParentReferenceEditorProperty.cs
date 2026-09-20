@@ -18,10 +18,14 @@ public partial class ParentReferenceEditorProperty : EditorProperty
     static string[] GetAllTypeNames()
     {
         return new List<string> { NoneValue }
-            .Concat(TypeCache.GetTypesDerivedFrom<LifetimeScope>().Select(type => type.FullName)).ToArray();
+            .Concat(TypeCache.GetTypesDerivedFrom<LifetimeScope>()
+                .Select(type => type.FullName)
+                .Where(name => name is not null)
+                .Select(name => name!))
+            .ToArray();
     }
 
-    string[] names;
+    string[] names = [];
     private OptionButton optionButton = new OptionButton();
 
     public ParentReferenceEditorProperty()

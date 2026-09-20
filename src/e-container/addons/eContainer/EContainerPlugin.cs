@@ -1,4 +1,5 @@
 #if TOOLS
+using System;
 using System.IO;
 using Enaweg.Plugin;
 using Godot;
@@ -10,7 +11,9 @@ public partial class EContainerPlugin : EditorPlugin, IEEditorPlugin
 {
     public void CreateRecipe(IEEditorPluginBuilder builder)
     {
-        var nugetSource = Path.Combine(this.GetPluginDirectory(), ".libs");
+        var pluginDirectory = this.GetPluginDirectory()
+            ?? throw new InvalidOperationException("The eContainer plugin directory could not be resolved.");
+        var nugetSource = Path.Combine(pluginDirectory, ".libs");
         builder
             .AddNuget("VContainer.Standalone", "1.19.0", nugetSource)
             .AddNuget("VContainer.SourceGenerator", "1.19.0", nugetSource)

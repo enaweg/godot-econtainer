@@ -7,12 +7,12 @@ namespace Enaweg.Container.Godot;
 public sealed class FixedTickableLoopItem : IFrameRunnerWorkItem, IDisposable
 {
 	readonly IReadOnlyList<IPhysicsTickable> entries;
-	readonly EntryPointExceptionHandler exceptionHandler;
+	readonly EntryPointExceptionHandler? exceptionHandler;
 	bool disposed;
 
 	public FixedTickableLoopItem(
 		IReadOnlyList<IPhysicsTickable> entries,
-		EntryPointExceptionHandler exceptionHandler)
+		EntryPointExceptionHandler? exceptionHandler)
 	{
 		this.entries = entries;
 		this.exceptionHandler = exceptionHandler;
@@ -44,7 +44,7 @@ public sealed class FixedTickableLoopItem : IFrameRunnerWorkItem, IDisposable
 	public void Dispose() => disposed = true;
 }
 
-public sealed class TickableLoopItem(IReadOnlyList<ITickable> entries, EntryPointExceptionHandler exceptionHandler) : IFrameRunnerWorkItem, IDisposable
+public sealed class TickableLoopItem(IReadOnlyList<ITickable> entries, EntryPointExceptionHandler? exceptionHandler) : IFrameRunnerWorkItem, IDisposable
 {
 	bool disposed;
 

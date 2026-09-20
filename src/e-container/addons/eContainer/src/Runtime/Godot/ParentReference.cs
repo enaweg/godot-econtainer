@@ -6,7 +6,7 @@ namespace Enaweg.Container.Godot;
 /// <remarks>The inspector persists <see cref="TypeName"/>. <see cref="Object"/> takes precedence when a parent has been assigned directly.</remarks>
 public partial struct ParentReference
 {
-	private string typeName;
+	private string typeName = string.Empty;
 
 	/// <summary>
 	/// The assembly-qualified-ish name of the parent scope type, as stored in the scene.
@@ -28,18 +28,18 @@ public partial struct ParentReference
 	}
 
 	/// <summary>Gets or sets the explicitly assigned parent scope, if any.</summary>
-	public LifetimeScope Object;
+	public LifetimeScope Object = null!;
 
 	/// <summary>Gets the scope type that owns this reference.</summary>
-	public Type OwnerType { get; init; }
+	public Type OwnerType { get; init; } = null!;
 	/// <summary>Gets the parent type resolved from <see cref="TypeName"/>, or <see langword="null"/> when it cannot be resolved.</summary>
-	public Type Type { get; private set; }
+	public Type Type { get; private set; } = null!;
 	
 	ParentReference(Type ownerType, Type type) : this()
 	{
 		Type = type;
-		typeName = type.FullName;
-		Object = null;
+		typeName = type.FullName!;
+		Object = null!;
 		OwnerType = ownerType;
 	}
 
@@ -49,19 +49,19 @@ public partial struct ParentReference
 	{
 		if (string.IsNullOrEmpty(typeName))
 		{
-			Type = null;
+			Type = null!;
 			return;
 		}
 
-		Type resolved = null;
+		Type resolved = null!;
 		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
 		{
-			resolved = assembly.GetType(typeName);
+			resolved = assembly.GetType(typeName)!;
 			if (resolved != null)
 				break;
 		}
 
-		Type = resolved;
+		Type = resolved!;
 	}
 
 	/// <summary>Creates a reference to a parent scope of type <typeparamref name="T"/>.</summary>

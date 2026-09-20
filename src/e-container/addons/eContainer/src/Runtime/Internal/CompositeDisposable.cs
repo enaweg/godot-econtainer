@@ -13,7 +13,7 @@ namespace Enaweg.Container.Internal
 
         public void Dispose()
         {
-            IDisposable disposable;
+            IDisposable? disposable;
             do
             {
                 lock (disposables)

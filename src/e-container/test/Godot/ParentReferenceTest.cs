@@ -14,7 +14,7 @@ public class ParentReferenceTest
 
         AssertObject(reference.Type).IsEqual(typeof(RootLifetimeScope));
         AssertObject(reference.OwnerType).IsEqual(typeof(ActionInstaller));
-        AssertString(reference.TypeName).IsEqual(typeof(RootLifetimeScope).FullName);
+        AssertString(reference.TypeName).IsEqual(typeof(RootLifetimeScope).FullName!);
     }
 
     [TestCase]
