@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 namespace Enaweg.Container.Godot;
 
+/// <summary>The singleton top-level <see cref="LifetimeScope"/> installed by the eContainer autoload.</summary>
+/// <remarks>It queues scopes whose declared parent has not entered the scene tree yet.</remarks>
 [GlobalClass]
 public sealed partial class RootLifetimeScope : LifetimeScope
 {

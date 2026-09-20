@@ -3,6 +3,8 @@ using Godot;
 
 namespace Enaweg.Container.Godot;
 
+/// <summary>Autoload node that advances eContainer's process and physics frame providers.</summary>
+/// <remarks>Only one active dispatcher is supported; eContainer installs it automatically.</remarks>
 public partial class FrameProviderDispatcher : global::Godot.Node
 {
 	// The frame providers and the time providers are process-wide statics, so a second

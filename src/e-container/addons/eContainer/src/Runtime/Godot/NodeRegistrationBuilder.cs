@@ -24,6 +24,8 @@ struct NodeDestination
 	}
 }
 
+/// <summary>Configures injection and optional scene-tree placement for an existing Godot node registration.</summary>
+/// <remarks>Instances are created by <see cref="ContainerBuilderNodeExtensions.RegisterNode{TInterface}"/>.</remarks>
 public sealed class NodeRegistrationBuilder : RegistrationBuilder
 {
 	readonly object instance;
@@ -101,24 +103,29 @@ public sealed class NodeRegistrationBuilder : RegistrationBuilder
 		return new Registration(ImplementationType, Lifetime, InterfaceTypes, provider);
 	}
 
+	/// <summary>Places the registered node under <paramref name="parent"/> after injecting it.</summary>
 	public NodeRegistrationBuilder UnderTransform(Node parent)
 	{
 		destination.Parent = parent;
 		return this;
 	}
 
+	/// <summary>Places the registered node under the parent returned at resolution time.</summary>
 	public NodeRegistrationBuilder UnderTransform(Func<Node> parentFinder)
 	{
 		destination.ParentFinder = _ => parentFinder();
 		return this;
 	}
 
+	/// <summary>Places the registered node under the parent selected with the resolving container.</summary>
 	public NodeRegistrationBuilder UnderTransform(Func<IObjectResolver, Node> parentFinder)
 	{
 		destination.ParentFinder = parentFinder;
 		return this;
 	}
 
+	/// <summary>Places the registered node under the scene tree root after injecting it.</summary>
+	/// <remarks>An explicit <see cref="UnderTransform(Node)"/> target takes precedence.</remarks>
 	public NodeRegistrationBuilder DontDestroyOnLoad()
 	{
 		destination.IsRootObject = true;

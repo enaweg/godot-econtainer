@@ -14,21 +14,29 @@ internal enum PlayerLoopTiming
 	PhysicsProcess
 }
 
+/// <summary>Schedules <see cref="IFrameRunnerWorkItem"/> instances against a Godot frame loop.</summary>
 public abstract class FrameProvider
 {
+	/// <summary>Gets the current frame count for this provider's loop.</summary>
 	public abstract long GetFrameCount();
+	/// <summary>Adds a work item that will run until it returns <see langword="false"/>.</summary>
 	public abstract void Register(IFrameRunnerWorkItem callback);
 }
 
+/// <summary>Represents work that can continue over successive frames.</summary>
 public interface IFrameRunnerWorkItem
 {
-	// true, continue
+	/// <summary>Runs once for the current frame.</summary>
+	/// <returns><see langword="true"/> to remain registered; otherwise <see langword="false"/>.</returns>
 	bool MoveNext(long frameCount);
 }
 
+/// <summary>Provides process and physics frame scheduling backed by Godot's frame counters.</summary>
 public class GodotFrameProvider : FrameProvider
 {
+	/// <summary>The provider advanced from Godot's <c>_Process</c> loop.</summary>
 	public static readonly GodotFrameProvider Process = new GodotFrameProvider(PlayerLoopTiming.Process);
+	/// <summary>The provider advanced from Godot's <c>_PhysicsProcess</c> loop.</summary>
 	public static readonly GodotFrameProvider PhysicsProcess = new GodotFrameProvider(PlayerLoopTiming.PhysicsProcess);
 	/// <summary>
 	/// Process-wide fallback for work items that let an exception escape MoveNext(). Entry
@@ -51,6 +59,7 @@ public class GodotFrameProvider : FrameProvider
 		this.list = new FreeListCore<IFrameRunnerWorkItem>(gate);
 	}
 
+	/// <inheritdoc />
 	public override long GetFrameCount()
 	{
 		if (PlayerLoopTiming == PlayerLoopTiming.Process)
@@ -63,6 +72,7 @@ public class GodotFrameProvider : FrameProvider
 		}
 	}
 
+	/// <inheritdoc />
 	public override void Register(IFrameRunnerWorkItem callback)
 	{
 		list.Add(callback, out _);
