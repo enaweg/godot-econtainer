@@ -212,19 +212,22 @@ public partial class LifetimeScope : Node
 		try
 		{
 			Parent = GetRuntimeParent();
-			if (autoRun)
+			if (AutoRun)
 			{
 				Build();
 			}
 		}
 		catch (VContainerParentTypeReferenceNotFound) when (!IsRoot)
 		{
-			if (RootLifetimeScope.WaitingListContains(this))
+			// Queue up and wait for the declared parent to enter the tree. EnqueueReady is
+			// idempotent-safe here: _ExitTree dequeues via DisposeCore, so a scope cannot
+			// re-enter the tree while still listed. This used to rethrow in that case, which
+			// only threw across Godot's native callback boundary - where it is logged and
+			// swallowed, never reaching the AddChild caller.
+			if (!RootLifetimeScope.WaitingListContains(this))
 			{
-				throw;
+				RootLifetimeScope.EnqueueReady(this);
 			}
-
-			RootLifetimeScope.EnqueueReady(this);
 		}
 	}
 

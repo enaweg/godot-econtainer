@@ -13,7 +13,14 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 	{
 		if (_instance != null)
 		{
-			throw new System.InvalidOperationException("RootLiftScope is already instantiated. Do not instantiate it manually.");
+			// Reported rather than thrown: an exception raised from a Godot node callback is
+			// logged and swallowed at the native boundary, so it never reaches the AddChild
+			// caller and only reads like it is handled. Leaving without claiming the singleton
+			// is what actually protects the live root.
+			GD.PushError(
+				$"A {nameof(RootLifetimeScope)} is already instantiated; this one will stay inert. " +
+				"It is installed by the eContainer autoload and should not be created manually.");
+			return;
 		}
 
 		Root = _instance = this;
