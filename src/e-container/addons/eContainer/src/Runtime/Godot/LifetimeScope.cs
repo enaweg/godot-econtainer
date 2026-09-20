@@ -410,34 +410,32 @@ public partial class LifetimeScope : Node
 			}
 		}
 
-		// Find in scene via type
-		if (ParentReference.Type != null && ParentReference.Type != GetType())
-		{
-			if (Find(ParentReference.Type) is { Container: not null } foundScope)
-				return foundScope;
-
-			throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
-		}
-
-		if (ParentReference.Type == null)
-		{
-			ParentReference = ParentReference.Create<RootLifetimeScope>(GetType());
-		}
-
+		// Normalise the declared type before looking it up: an unset parent type, or one
+		// naming this scope's own type, both mean "parent to the root scope". This used to be
+		// written as two identical copies of the lookup below, one on either side of the
+		// normalisation.
 		if (ParentReference.Type == GetType())
 		{
 			GD.PushWarning("Parent reference cannot be same as self.");
+		}
+
+		if (ParentReference.Type == null || ParentReference.Type == GetType())
+		{
 			ParentReference = ParentReference.Create<RootLifetimeScope>(GetType());
 		}
-		
-		if (ParentReference.Type != null && ParentReference.Type != GetType())
-		{
-			if (Find(ParentReference.Type) is { Container: not null } foundScope)
-				return foundScope;
 
-			throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
+		// Only a stray RootLifetimeScope - one that lost the singleton race and so is not Root -
+		// normalises to its own type. It has no parent to find.
+		if (ParentReference.Type == GetType())
+		{
+			return null;
 		}
-		return null;
+
+		// Find in scene via type
+		if (Find(ParentReference.Type) is { Container: not null } foundScope)
+			return foundScope;
+
+		throw new VContainerParentTypeReferenceNotFound(ParentReference.Type, $"{Name} could not found parent reference of type : {ParentReference.Type}");
 	}
 
 	void AutoInjectAll()
