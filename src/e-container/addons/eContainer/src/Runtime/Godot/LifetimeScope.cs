@@ -13,9 +13,15 @@ namespace Enaweg.Container.Godot;
 //
 // [GlobalClass] so a plain LifetimeScope can be picked by name in the editor's Create Node
 // dialog, instead of having to be created as a Node with the script attached by hand.
+/// <summary>A Godot node that owns a VContainer scope for itself and its child scopes.</summary>
+/// <remarks>
+/// With <see cref="AutoRun"/> enabled, the container builds in <c>_EnterTree</c> and is disposed in
+/// <c>_ExitTree</c>. A scope inherits from its resolved <see cref="Parent"/>; otherwise it creates a root container.
+/// </remarks>
 [GlobalClass]
 public partial class LifetimeScope : Node
 {
+	/// <summary>Temporarily supplies the parent used by scopes created within the surrounding <c>using</c> block.</summary>
 	public readonly struct ParentOverrideScope : IDisposable
 	{
 		readonly LifetimeScope pushed;
@@ -38,6 +44,7 @@ public partial class LifetimeScope : Node
 		}
 	}
 
+	/// <summary>Temporarily adds an installer to scopes created within the surrounding <c>using</c> block.</summary>
 	public readonly struct ExtraInstallationScope : IDisposable
 	{
 		readonly IInstaller pushed;
@@ -58,8 +65,10 @@ public partial class LifetimeScope : Node
 		}
 	}
 
+	/// <summary>Serialized and runtime information used to locate this scope's parent.</summary>
 	public ParentReference ParentReference;
 
+	/// <summary>Gets or sets the serialized parent-scope type name shown by Godot's inspector.</summary>
 	[Export]
 	public string ParentTypeName
 	{
@@ -67,6 +76,7 @@ public partial class LifetimeScope : Node
 		set => ParentReference.TypeName = value;
 	}
 
+	/// <summary>Gets or sets whether this scope builds automatically when it enters the scene tree.</summary>
 	[Export] public bool AutoRun = true;
 
 	/// <summary>Nodes injected from this scope's container as soon as it is built.</summary>
@@ -117,11 +127,18 @@ public partial class LifetimeScope : Node
 		return node;
 	}
 
+	/// <summary>Creates and attaches a child of the eContainer root scope using <paramref name="configuration"/>.</summary>
+	/// <exception cref="InvalidOperationException">The eContainer root autoload has not entered the tree.</exception>
 	public static LifetimeScope Create(Action<IContainerBuilder> configuration) => Create(new ActionInstaller(configuration));
+	/// <summary>Temporarily overrides the parent used for scopes created in the returned scope's lifetime.</summary>
 	public static ParentOverrideScope EnqueueParent(LifetimeScope parent) => new ParentOverrideScope(parent);
+	/// <summary>Temporarily adds registrations to scopes created in the returned scope's lifetime.</summary>
 	public static ExtraInstallationScope Enqueue(Action<IContainerBuilder> installing) => new ExtraInstallationScope(new ActionInstaller(installing));
+	/// <summary>Temporarily adds <paramref name="installer"/> to scopes created in the returned scope's lifetime.</summary>
 	public static ExtraInstallationScope Enqueue(IInstaller installer) => new ExtraInstallationScope(installer);
+	/// <summary>Finds the active scope of type <typeparamref name="T"/> in <paramref name="scene"/>.</summary>
 	public static LifetimeScope Find<T>(SceneTree scene) where T : LifetimeScope => Find(typeof(T), scene);
+	/// <summary>Finds the active scope of type <typeparamref name="T"/> in the current scene.</summary>
 	public static LifetimeScope Find<T>() where T : LifetimeScope => Find(typeof(T));
 
 	static LifetimeScope Find(Type type, SceneTree scene)
@@ -192,9 +209,12 @@ public partial class LifetimeScope : Node
 
 	static LifetimeScope Find(Type type) => Root == null ? null : Find(type, Root.GetTree());
 	protected static RootLifetimeScope Root { get; set; }
+	/// <summary>Gets this scope's built resolver, or <see langword="null"/> until it has built or after disposal.</summary>
 	public IObjectResolver Container { get; private set; }
+	/// <summary>Gets the resolved parent scope, or <see langword="null"/> when this scope is a root scope.</summary>
 	public LifetimeScope Parent { get; private set; }
 
+	/// <summary>Gets whether this instance is the active eContainer root scope.</summary>
 	public bool IsRoot => this == Root;
 
 	readonly List<IInstaller> localExtraInstallers = new List<IInstaller>();
@@ -273,6 +293,8 @@ public partial class LifetimeScope : Node
 		RootLifetimeScope.CancelReady(this);
 	}
 
+	/// <summary>Builds this scope's resolver and dispatches its registered entry points.</summary>
+	/// <remarks>This method is idempotent. It builds an unbuilt parent first when required.</remarks>
 	public void Build()
 	{
 		// Building twice would silently orphan the first container - its singletons never
@@ -349,6 +371,8 @@ public partial class LifetimeScope : Node
 	}
 
 
+	/// <summary>Creates, attaches, and builds a child scope of type <typeparamref name="TScope"/>.</summary>
+	/// <param name="installer">Optional registrations applied only to the child scope.</param>
 	public TScope CreateChild<TScope>(IInstaller installer = null) where TScope : LifetimeScope, new()
 	{
 		var child = new TScope();
@@ -363,13 +387,18 @@ public partial class LifetimeScope : Node
 		return child;
 	}
 
+	/// <summary>Creates, attaches, and builds a plain child <see cref="LifetimeScope"/>.</summary>
 	public LifetimeScope CreateChild(IInstaller installer = null) => CreateChild<LifetimeScope>(installer);
 
+	/// <summary>Creates a child scope configured by <paramref name="installation"/>.</summary>
 	public TScope CreateChild<TScope>(Action<IContainerBuilder> installation) where TScope : LifetimeScope, new()
 		=> CreateChild<TScope>(new ActionInstaller(installation));
 
+	/// <summary>Creates a plain child scope configured by <paramref name="installation"/>.</summary>
 	public LifetimeScope CreateChild(Action<IContainerBuilder> installation) => CreateChild<LifetimeScope>(new ActionInstaller(installation));
 
+	/// <summary>Instantiates a packed scene, finds its child scope, and attaches that scope to this scope.</summary>
+	/// <returns>The discovered scope, or <see langword="null"/> when the scene contains none of the requested type.</returns>
 	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, IInstaller installer = null) where TScope : LifetimeScope
 	{
 		ThrowHelper.ThrowArgumentNullIfNull(scene);
@@ -407,6 +436,7 @@ public partial class LifetimeScope : Node
 		return child;
 	}
 
+	/// <summary>Instantiates a packed-scene child scope configured by <paramref name="installation"/>.</summary>
 	public TScope CreateChildFromPackedScene<TScope>(PackedScene scene, Action<IContainerBuilder> installation) where TScope : LifetimeScope
 		=> CreateChildFromPackedScene<TScope>(scene, new ActionInstaller(installation));
 

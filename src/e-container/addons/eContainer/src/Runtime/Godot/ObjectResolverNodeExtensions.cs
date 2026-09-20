@@ -4,6 +4,7 @@ using VContainer;
 
 namespace Enaweg.Container.Godot;
 
+/// <summary>Injection helpers for Godot nodes and packed scenes.</summary>
 public static class ObjectResolverNodeExtensions
 {
 	/// <summary>
@@ -36,6 +37,9 @@ public static class ObjectResolverNodeExtensions
 		}
 	}
 
+	/// <summary>Instantiates, injects, and attaches a packed-scene node.</summary>
+	/// <remarks>Injection happens before the node enters the tree, so injected members are available to <c>_EnterTree</c> and <c>_Ready</c>.</remarks>
+	/// <exception cref="System.ArgumentNullException"><paramref name="prefab"/> or <paramref name="parent"/> is <see langword="null"/>.</exception>
 	public static T Instantiate<T>(this IObjectResolver resolver, PackedScene prefab, Node parent) where T : Node
 	{
 		ThrowHelper.ThrowArgumentNullIfNull(prefab);

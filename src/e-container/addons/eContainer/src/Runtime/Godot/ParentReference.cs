@@ -2,6 +2,8 @@ using System;
 
 namespace Enaweg.Container.Godot;
 
+/// <summary>Serialized and runtime information identifying a <see cref="LifetimeScope"/>'s parent.</summary>
+/// <remarks>The inspector persists <see cref="TypeName"/>. <see cref="Object"/> takes precedence when a parent has been assigned directly.</remarks>
 public partial struct ParentReference
 {
 	private string typeName;
@@ -25,9 +27,12 @@ public partial struct ParentReference
 		}
 	}
 
+	/// <summary>Gets or sets the explicitly assigned parent scope, if any.</summary>
 	public LifetimeScope Object;
 
+	/// <summary>Gets the scope type that owns this reference.</summary>
 	public Type OwnerType { get; init; }
+	/// <summary>Gets the parent type resolved from <see cref="TypeName"/>, or <see langword="null"/> when it cannot be resolved.</summary>
 	public Type Type { get; private set; }
 	
 	ParentReference(Type ownerType, Type type) : this()
@@ -38,6 +43,8 @@ public partial struct ParentReference
 		OwnerType = ownerType;
 	}
 
+	/// <summary>Resolves <see cref="TypeName"/> against currently loaded assemblies.</summary>
+	/// <remarks>An unresolved name is retained so the serialized reference can be repaired later.</remarks>
 	public void OnAfterDeserialize()
 	{
 		if (string.IsNullOrEmpty(typeName))
@@ -57,5 +64,6 @@ public partial struct ParentReference
 		Type = resolved;
 	}
 
+	/// <summary>Creates a reference to a parent scope of type <typeparamref name="T"/>.</summary>
 	public static ParentReference Create<T>(Type ownerType) => new ParentReference(ownerType, typeof(T));
 }

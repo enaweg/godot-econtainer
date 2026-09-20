@@ -7,9 +7,13 @@ using Godot;
 
 namespace Enaweg.Container.Godot;
 
+/// <summary>A <see cref="TimeProvider"/> driven by Godot's process or physics loop.</summary>
+/// <remarks>The providers advance only while the eContainer <see cref="FrameProviderDispatcher"/> is active.</remarks>
 public class GodotTimeProvider : TimeProvider
 {
+	/// <summary>The time provider advanced from Godot's <c>_Process</c> loop.</summary>
     public static readonly GodotTimeProvider Process = new GodotTimeProvider(GodotFrameProvider.Process);
+	/// <summary>The time provider advanced from Godot's <c>_PhysicsProcess</c> loop.</summary>
     public static readonly GodotTimeProvider PhysicsProcess = new GodotTimeProvider(GodotFrameProvider.PhysicsProcess);
 
     readonly GodotFrameProvider frameProvider;
@@ -21,11 +25,13 @@ public class GodotTimeProvider : TimeProvider
         this.frameProvider = (GodotFrameProvider)frameProvider;
     }
 
+    /// <inheritdoc />
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         return new FrameTimer(callback, state, dueTime, period, frameProvider);
     }
 
+    /// <inheritdoc />
     public override long GetTimestamp()
     {
         return TimeSpan.FromSeconds(time).Ticks;

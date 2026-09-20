@@ -73,7 +73,8 @@ public partial class GameLifetimeScope : LifetimeScope
 {
     protected override void Configure(IContainerBuilder builder)
     {
-        builder.Register<IPlayerService, PlayerService>(Lifetime.Singleton);
+        // Entry points are the registrations that receive the lifecycle callbacks below.
+        builder.RegisterEntryPoint<PlayerService>(Lifetime.Singleton);
         builder.Register<EnemySpawner>(Lifetime.Scoped);
     }
 }
@@ -86,7 +87,7 @@ cascade down the scope hierarchy.
 Resolved classes can opt into the entry-point lifecycle by implementing the annotation interfaces:
 
 ```csharp
-using Enaweg.Container.Annotations;
+using Enaweg.Container.Godot;
 
 public class PlayerService : IInitializable, ITickable
 {
@@ -94,6 +95,10 @@ public class PlayerService : IInitializable, ITickable
     public void Tick() { /* runs every _Process */ }
 }
 ```
+
+The lifecycle interfaces are opt-in: register their implementation with `RegisterEntryPoint`, or add it through
+`UseEntryPoints`, rather than using `Register` alone. `IInitializable` runs first, followed by
+`IPostInitializable`; `ITickable` and `IPhysicsTickable` then run from `_Process` and `_PhysicsProcess`, respectively.
 
 ## Development
 
