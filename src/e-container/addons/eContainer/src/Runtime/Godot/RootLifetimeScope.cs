@@ -25,16 +25,25 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 
 	public override void _ExitTree()
 	{
-		if (_instance == this)
-		{
-			_instance = null;
-			Root = null;
-		}
-
 		if (treeRoot != null)
 		{
 			treeRoot.ChildEnteredTree -= OnChildEnteredTreeRoot;
 			treeRoot = null;
+		}
+
+		// base._ExitTree() is what disposes the container. Without it the root scope - and
+		// every IDisposable singleton registered in it - survived teardown untouched. It runs
+		// before Root is cleared so that anything disposing here still sees a consistent Root.
+		base._ExitTree();
+
+		if (_instance == this)
+		{
+			// The queue belongs to this root's tree; leaving entries behind would keep freed
+			// nodes reachable from a static list across a scene reload.
+			WaitingList.Clear();
+
+			_instance = null;
+			Root = null;
 		}
 	}
 
