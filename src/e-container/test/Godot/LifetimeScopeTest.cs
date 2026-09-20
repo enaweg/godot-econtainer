@@ -15,8 +15,11 @@ public partial class LifetimeScopeTest
 {
     sealed partial class ConfiguringScope : LifetimeScope
     {
+        public int ConfigureCount { get; private set; }
+
         protected override void Configure(IContainerBuilder builder)
         {
+            ConfigureCount++;
             builder.RegisterInstance("configured");
         }
 
@@ -315,5 +318,71 @@ public partial class LifetimeScopeTest
         scope.Dispose();
 
         AssertObject(scope.Container).IsNull();
+    }
+
+    // Dispose(bool) now overrides GodotObject.Dispose(bool) instead of hiding it with `new`, so
+    // it also chains to the base implementation. Disposing a scope must still get rid of its
+    // node, which base.Dispose() alone does not do for a node that is in the tree.
+    [TestCase]
+    public void Dispose_QueuesTheNodeForDeletion()
+    {
+        var scope = new ConfiguringScope();
+        Root.AddChild(scope);
+        var instanceId = scope.GetInstanceId();
+
+        scope.Dispose();
+
+        // Read through a fresh handle: the scope's own wrapper is disposed by now.
+        AssertBool(GodotObject.IsInstanceIdValid(instanceId)).IsTrue();
+        var stillLive = (Node)GodotObject.InstanceFromId(instanceId)!;
+        AssertBool(stillLive.IsQueuedForDeletion()).IsTrue();
+    }
+
+    // Build() is reachable from _EnterTree, from the waiting-list flush and from user code.
+    // Without a guard the second call silently orphaned the first container and dispatched the
+    // scope's entry points again.
+    [TestCase]
+    public void Build_CalledAgainAfterBuilding_IsANoOp()
+    {
+        var scope = AutoFree(new ConfiguringScope())!;
+        Root.AddChild(scope);
+        var container = scope.Container;
+        AssertObject(container).IsNotNull();
+
+        scope.Build();
+
+        AssertObject(scope.Container).IsSame(container);
+        AssertInt(scope.ConfigureCount).IsEqual(1);
+    }
+
+    // Parent lookup used to check only the direct children of the root scope and of the current
+    // scene, so a scope sitting any deeper - the usual layout for one owning a sub-hierarchy -
+    // was unreachable and anything declaring it as a parent type queued forever.
+    [TestCase]
+    public void Find_LocatesAScopeNestedBelowTheFirstLevel()
+    {
+        var holder = AutoFree(new Node())!;
+        Root.AddChild(holder);
+        var deeper = AutoFree(new Node())!;
+        holder.AddChild(deeper);
+
+        var nested = AutoFree(new NamedTargetScope())!;
+        deeper.AddChild(nested);
+
+        AssertObject(LifetimeScope.Find<NamedTargetScope>()).IsSame(nested);
+    }
+
+    // Reading parentTypeName used to re-derive it from the resolved Type, which is null whenever
+    // the named type did not load - a renamed class, a broken build. The inspector reading the
+    // property, or Godot serialising the scene, was then enough to write that loss to disk.
+    [TestCase]
+    public void ParentTypeName_WithATypeThatDoesNotResolve_SurvivesBeingReadBack()
+    {
+        var scope = AutoFree(new LifetimeScope())!;
+
+        scope.parentTypeName = "Game.Scopes.DeletedScope";
+
+        AssertString(scope.parentTypeName).IsEqual("Game.Scopes.DeletedScope");
+        AssertObject(scope.ParentReference.Type).IsNull();
     }
 }

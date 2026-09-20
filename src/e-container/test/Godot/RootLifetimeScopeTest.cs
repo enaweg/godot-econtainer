@@ -25,6 +25,36 @@ public partial class RootLifetimeScopeTest
     {
     }
 
+    // The two links of a queued chain: MiddleScope waits for OtherTargetScope, LeafScope waits
+    // for MiddleScope. Both count their builds so a second one is visible.
+    sealed partial class MiddleScope : LifetimeScope
+    {
+        public int ConfigureCount;
+
+        protected override void Configure(IContainerBuilder builder)
+        {
+            ConfigureCount++;
+            builder.RegisterInstance("middle");
+        }
+    }
+
+    sealed partial class LeafScope : LifetimeScope
+    {
+        public int ConfigureCount;
+
+        protected override void Configure(IContainerBuilder builder)
+        {
+            ConfigureCount++;
+        }
+    }
+
+    sealed class DisposableProbe : System.IDisposable
+    {
+        public bool IsDisposed { get; private set; }
+
+        public void Dispose() => IsDisposed = true;
+    }
+
     static RootLifetimeScope Root => (RootLifetimeScope)LifetimeScope.Find<RootLifetimeScope>()!;
 
     [TestCase]
@@ -137,6 +167,80 @@ public partial class RootLifetimeScopeTest
 
         AssertBool(RootLifetimeScope.WaitingListContains(waiter)).IsFalse();
         AssertObject(waiter.Container).IsNotNull();
+    }
+
+    // A scope queued behind another queued scope gets built by the parent's own flush, part way
+    // through RetryWaitingChildren's iteration over its up-front snapshot. The snapshot still
+    // holds it, so the loop used to wake it a second time: a second container, the first one
+    // orphaned undisposed, Configure and the entry points run twice, tickables registered twice.
+    [TestCase]
+    public void RetryWaitingChildren_WithAChainOfQueuedScopes_BuildsEachExactlyOnce()
+    {
+        // Present and built, so the chain can resolve once the retry reaches it.
+        var chainRoot = AutoFree(new OtherTargetScope())!;
+        Root.AddChild(chainRoot);
+
+        var middle = AutoFree(new MiddleScope())!;
+        middle.ParentReference = ParentReference.Create<OtherTargetScope>(typeof(MiddleScope));
+        var leaf = AutoFree(new LeafScope())!;
+        leaf.ParentReference = ParentReference.Create<MiddleScope>(typeof(LeafScope));
+
+        // Queued directly, in chain order, without going through the tree: this pins the flush
+        // itself rather than the _EnterTree ordering that happens to produce this state.
+        RootLifetimeScope.EnqueueReady(middle);
+        RootLifetimeScope.EnqueueReady(leaf);
+
+        RootLifetimeScope.RetryWaitingChildren();
+
+        AssertBool(RootLifetimeScope.WaitingListContains(middle)).IsFalse();
+        AssertBool(RootLifetimeScope.WaitingListContains(leaf)).IsFalse();
+        AssertObject(leaf.Parent).IsSame(middle);
+        AssertObject(leaf.Container).IsNotNull();
+        AssertObject(leaf.Container.Resolve<string>()).IsEqual("middle");
+
+        AssertInt(middle.ConfigureCount).IsEqual(1);
+        AssertInt(leaf.ConfigureCount).IsEqual(1);
+    }
+
+    // RootLifetimeScope._ExitTree never chained to base._ExitTree(), so the one place that
+    // disposes a scope's container was skipped for the root - every IDisposable singleton
+    // registered at root level survived teardown.
+    [TestCase]
+    public void RootExitingTree_DisposesItsContainer()
+    {
+        var root = Root;
+        var autoloadParent = root.GetParent();
+        AssertObject(autoloadParent).IsNotNull();
+
+        try
+        {
+            // Rebuild the live root with a container-owned disposable in it, so the teardown
+            // under test is observable.
+            autoloadParent.RemoveChild(root);
+            using (LifetimeScope.Enqueue(b => b.Register<DisposableProbe>(Lifetime.Singleton)))
+            {
+                autoloadParent.AddChild(root);
+            }
+
+            var probe = root.Container.Resolve<DisposableProbe>();
+            AssertBool(probe.IsDisposed).IsFalse();
+
+            autoloadParent.RemoveChild(root);
+
+            AssertBool(probe.IsDisposed).IsTrue();
+            AssertObject(root.Container).IsNull();
+        }
+        finally
+        {
+            // Every other test in the run needs a live, built root back.
+            if (root.GetParent() == null)
+            {
+                autoloadParent.AddChild(root);
+            }
+        }
+
+        AssertObject(LifetimeScope.Find<RootLifetimeScope>()).IsSame(root);
+        AssertObject(root.Container).IsNotNull();
     }
 
     [TestCase]
