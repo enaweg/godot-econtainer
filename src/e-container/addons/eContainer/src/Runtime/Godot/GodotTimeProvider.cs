@@ -73,6 +73,9 @@ internal sealed class FrameTimer : ITimer, IFrameRunnerWorkItem
     {
         if (isDisposed) return false;
 
+        ValidateTimeout(dueTime, nameof(dueTime));
+        ValidateTimeout(period, nameof(period));
+
         lock (gate)
         {
             this.dueTime = dueTime;
@@ -134,7 +137,9 @@ internal sealed class FrameTimer : ITimer, IFrameRunnerWorkItem
                     callback(state);
 
                     elapsed = 0;
-                    if (period == Timeout.InfiniteTimeSpan)
+                    // A zero period has the same one-shot behavior as System.Threading.Timer.
+                    // Leaving it in RunningPeriod made it invoke once per Godot frame.
+                    if (period == Timeout.InfiniteTimeSpan || period == TimeSpan.Zero)
                     {
                         return ChangeState(RunningState.Stop);
                     }
@@ -186,6 +191,15 @@ internal sealed class FrameTimer : ITimer, IFrameRunnerWorkItem
                     runningState = state;
                     return false;
             }
+        }
+    }
+
+    static void ValidateTimeout(TimeSpan timeout, string parameterName)
+    {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, timeout,
+                "Timeout must be non-negative or Timeout.InfiniteTimeSpan.");
         }
     }
 

@@ -61,9 +61,11 @@ internal sealed class EGlobal
 
         if (_toCheckEnable.Any())
         {
-            foreach (var pluginContext in _toCheckEnable)
+            // Pop before enabling. Keeping entries in the stack caused a framework bootstrap
+            // to retry the same install on every later refresh.
+            while (_toCheckEnable.Any())
             {
-                EnableEPlugin(pluginContext, false);
+                EnableEPlugin(_toCheckEnable.Pop(), false);
             }
 
             RefreshEditor();
@@ -168,6 +170,7 @@ internal sealed class EGlobal
         if (!context.IsRecipeCreated)
         {
             context.Plugin.CreateRecipe(context.Builder);
+            context.IsRecipeCreated = true;
         }
 
         // check dependencies
@@ -196,7 +199,7 @@ internal sealed class EGlobal
 
                 if (MatchesVersion(dependencyVersion, dependency.Version, context.Logger))
                 {
-                    if (context.State is EEditorPluginState.Deactivated or EEditorPluginState.Error)
+                    if (dependencyContext.State is EEditorPluginState.Deactivated or EEditorPluginState.Error)
                     {
                         context.Logger?.Warn(
                             $"Plugin dependency {dependency.Slug} not ready but needed by {context.Slug}!");
@@ -225,7 +228,12 @@ internal sealed class EGlobal
         }
 
         //all dependencies are ready, we can finally install the requested plugin
-        InstallEPlugin(context, recipe);
+        if (!InstallEPlugin(context, recipe))
+        {
+            return;
+        }
+
+        context.State = EEditorPluginState.Activated;
 
         if (refreshAtEnd)
         {
@@ -255,14 +263,14 @@ internal sealed class EGlobal
         RefreshEditor();
     }
 
-    private void InstallEPlugin(PluginContext context, EEditorPluginRecipe recipe)
+    private bool InstallEPlugin(PluginContext context, EEditorPluginRecipe recipe)
     {
         foreach (var nuget in recipe.Nugets)
         {
             if (!context.Cli!.AddNugetToProject(nuget.Name, nuget.Version, nuget.Source))
             {
                 context.FailedTries = uint.MaxValue;
-                return;
+                return false;
             }
 
             if (nuget.Source is not null)
@@ -290,6 +298,8 @@ internal sealed class EGlobal
         {
             context.PluginBase.AddAutoloadSingleton(autoload.Name, autoload.Path);
         }
+
+        return true;
     }
 
     public void DisableEPlugin(PluginContext context, bool refreshAtEnd = true)
@@ -305,7 +315,9 @@ internal sealed class EGlobal
             return;
         }
 
-        if (context.State == EEditorPluginState.Deactivated)
+        // A Created or Error context never completed an installation, so attempting to
+        // uninstall it would remove resources it does not own.
+        if (context.State is not EEditorPluginState.Activated)
         {
             return;
         }
@@ -313,6 +325,7 @@ internal sealed class EGlobal
         if (!context.IsRecipeCreated)
         {
             context.Plugin.CreateRecipe(context.Builder);
+            context.IsRecipeCreated = true;
         }
 
         // disable plugins dependent on this one
@@ -493,12 +506,13 @@ internal sealed class EGlobal
 
                 var context = GetOrCreateContext(pluginBase);
 
-                context.State = changeTriggered
+                context.State = changeTriggered || _toCheckEnable.Contains(context)
                     ?
-                    // was a change to plugins, so this is a new plugin need to bootstrap.
+                    // A plugin that triggered ePlugin's bootstrap is queued for its first
+                    // installation. Do not mark it activated merely because its node exists.
                     EEditorPluginState.Created
                     :
-                    // initial start or assembly reload, nothing need to be done as installation already happened
+                    // Initial start or assembly reload: installation already happened.
                     EEditorPluginState.Activated;
 
                 _ePluginContext.Logger.Log($"  - plugin {pluginBase.GetPluginSlug()} ({pluginBase.GetName()})");

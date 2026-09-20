@@ -61,4 +61,42 @@ public class GodotTimeProviderTest
             GodotFrameProvider.Process.Delta = originalDelta;
         }
     }
+
+    [TestCase]
+    public void CreateTimer_WithZeroPeriod_FiresOnlyOnce()
+    {
+        var originalDelta = GodotFrameProvider.Process.Delta;
+        GodotFrameProvider.Process.Delta = new StrongBox<double>(0.05);
+        var fired = 0;
+        ITimer? timer = null;
+        try
+        {
+            timer = GodotTimeProvider.Process.CreateTimer(
+                _ => fired++,
+                null,
+                TimeSpan.Zero,
+                TimeSpan.Zero);
+
+            GodotFrameProvider.Process.Run(0.05);
+            GodotFrameProvider.Process.Run(0.05);
+
+            AssertInt(fired).IsEqual(1);
+        }
+        finally
+        {
+            timer?.Dispose();
+            GodotFrameProvider.Process.Delta = originalDelta;
+        }
+    }
+
+    [TestCase]
+    public void CreateTimer_WithInvalidTimeout_ThrowsArgumentOutOfRange()
+    {
+        AssertThrown(() => GodotTimeProvider.Process.CreateTimer(
+                _ => { },
+                null,
+                TimeSpan.FromMilliseconds(-2),
+                Timeout.InfiniteTimeSpan))
+            .IsInstanceOf<ArgumentOutOfRangeException>();
+    }
 }

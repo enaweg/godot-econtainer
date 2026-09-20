@@ -92,7 +92,7 @@ using Enaweg.Container.Godot;
 public class PlayerService : IInitializable, ITickable
 {
     public void Initialize() { /* runs once the scope resolves */ }
-    public void Tick() { /* runs every _Process */ }
+    public void Tick(long frameCount) { /* runs every _Process */ }
 }
 ```
 
