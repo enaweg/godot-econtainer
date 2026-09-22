@@ -4,7 +4,11 @@ using System.Collections.Generic;
 namespace Enaweg.Container.Godot;
 
 /// <summary>The singleton top-level <see cref="LifetimeScope"/> installed by the eContainer autoload.</summary>
-/// <remarks>It queues scopes whose declared parent has not entered the scene tree yet.</remarks>
+/// <remarks>
+/// It queues scopes whose declared parent has not entered the scene tree yet. Unlike an ordinary scope it builds in
+/// <c>_Ready</c> rather than <c>_EnterTree</c>, so that every autoload and the main scene - all of which enter the
+/// tree first - can still contribute registrations via <see cref="LifetimeScope.Enqueue(IInstaller)"/>.
+/// </remarks>
 [GlobalClass]
 public sealed partial class RootLifetimeScope : LifetimeScope
 {
@@ -28,8 +32,34 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 		Root = _instance = this;
 		treeRoot = GetTree().Root;
 
+		// Deliberately not built here. Godot runs every autoload's _EnterTree - and the whole
+		// main scene's - before the first autoload _Ready, so building now would seal the
+		// container before any bootstrap code could LifetimeScope.Enqueue() its installers.
+		// The build moves to _Ready, by which point every autoload and the main scene have
+		// entered the tree and had a chance to enqueue.
+		//
+		// AutoRun is suppressed rather than skipping base._EnterTree(), so the base class keeps
+		// owning what entering the tree means for a scope; only the build is deferred.
+		var autoRun = AutoRun;
+		AutoRun = false;
 		base._EnterTree();
+		AutoRun = autoRun;
+
 		treeRoot.ChildEnteredTree += OnChildEnteredTreeRoot;
+	}
+
+	public override void _Ready()
+	{
+		// The losing instance of a singleton race never claimed Root and has no parent
+		// resolved, so it must stay inert here too.
+		if (_instance != this)
+			return;
+
+		// A no-op when a bootstrapper already forced the build - Build() is idempotent. That
+		// happens whenever a scope in the main scene resolves this one as its parent, since the
+		// main scene enters the tree before this _Ready runs.
+		if (AutoRun)
+			Build();
 	}
 
 	public override void _ExitTree()
@@ -54,6 +84,11 @@ public sealed partial class RootLifetimeScope : LifetimeScope
 			_instance = null!;
 			Root = null!;
 		}
+
+		// Godot notifies a node READY only once per lifetime unless it is asked again. Now that
+		// the build hangs off _Ready rather than _EnterTree, a root that leaves and re-enters
+		// the tree would otherwise come back permanently container-less.
+		RequestReady();
 	}
 
 	static readonly List<LifetimeScope> WaitingList = new List<LifetimeScope>();
