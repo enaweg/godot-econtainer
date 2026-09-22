@@ -51,7 +51,8 @@ directory again.
 + VContainer's `IObjectResolver`/`IContainerBuilder` API adapted to Godot's `Node` lifecycle.
 + `LifetimeScope` builds and tears down a scoped container on `_EnterTree`/`_ExitTree`.
 + Child scopes resolve their parent automatically and can be created in code or from a `PackedScene`.
-+ A top-level `RootLifetimeScope` autoload queues child scopes until their declared parent is ready.
++ A top-level `RootLifetimeScope` autoload queues child scopes until their declared parent is ready, and defers its
+  own build to `_Ready` so other autoloads can contribute registrations first.
 + Entry-point and tickable annotations: `IInitializable`, `IPostInitializable`, `ITickable`, and `IPhysicsTickable`.
 + Plugin installation and dependency management through the [ePlugin Framework](https://github.com/enaweg/godot-epluginframework).
 
@@ -85,6 +86,39 @@ public partial class GameLifetimeScope : LifetimeScope
 Attach `GameLifetimeScope` to a node in a scene, or create one from code with `LifetimeScope.Create(...)`.
 `LifetimeScope` resolves its parent automatically - normally the `RootLifetimeScope` autoload - so registrations
 cascade down the scope hierarchy.
+
+### Registering into the root scope
+
+The `eContainer` autoload owns the `RootLifetimeScope`, the container every other scope ultimately inherits from.
+Unlike an ordinary scope, it does **not** build in `_EnterTree` - it builds in `_Ready`. Godot runs every autoload's
+`_EnterTree`, and the whole main scene's, before the first `_Ready` fires anywhere, so deferring the build leaves a
+window in which the rest of your project can still add registrations to the root container:
+
+```csharp
+public partial class GameBootstrap : Node // an autoload of your own
+{
+    LifetimeScope.ExtraInstallationScope installation;
+
+    public override void _EnterTree()
+        => installation = LifetimeScope.Enqueue(b => b.RegisterInstance(new SaveGameService()));
+
+    public override void _ExitTree() => installation.Dispose();
+}
+```
+
+Register from `_EnterTree`, not `_Ready`. `_EnterTree` works no matter where your autoload sits in the list, whereas
+`_Ready` only runs before the root builds if your autoload is listed *above* `eContainer` in
+**Project > Project Settings > Autoload**.
+
+Two consequences are worth knowing:
+
+- `LifetimeScope.Find<RootLifetimeScope>()!.Container` is `null` for the duration of every `_EnterTree` in the
+  project, including the main scene's. A scope that enters the tree in that window is queued on the root's waiting
+  list and builds as soon as the root does, so scopes in scenes need no special handling - but code reaching for
+  `Container` directly from `_EnterTree` does.
+- Anything that forces the root to build early - calling `Build()` on it yourself, or resolving from it during
+  `_EnterTree` - closes the window for everyone. `Build()` is idempotent, so the `_Ready` build then becomes a no-op
+  rather than a second container.
 
 Resolved classes can opt into the entry-point lifecycle by implementing the annotation interfaces:
 
