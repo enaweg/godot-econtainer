@@ -82,7 +82,13 @@ instead of imperatively wiring things up in `_EnablePlugin`/`_DisablePlugin`:
     (`CreateChild`) or instantiated from a `PackedScene` (`CreateChildFromPackedScene`).
   - `RootLifetimeScope` — the single top-level scope (registered as the `eContainer` autoload), which also handles
     scopes whose declared parent type hasn't entered the tree yet via a `WaitingList` that gets flushed as matching
-    parents become ready or the current scene changes.
+    parents become ready or the current scene changes. Unlike every other scope it builds in `_Ready`, not
+    `_EnterTree`: Godot runs all autoloads' `_EnterTree` and the whole main scene's before the first `_Ready`, so
+    deferring keeps a window open in which consuming projects can still `LifetimeScope.Enqueue()` installers into
+    the root container. `_EnterTree` therefore suppresses `AutoRun` around its `base._EnterTree()` call, and
+    `_ExitTree` calls `RequestReady()` so a root that re-enters the tree builds again (Godot notifies READY only
+    once per node otherwise). Scopes that enter the tree before the root has built simply queue on the
+    `WaitingList` and are flushed by the root's own `Build()`.
   - `EntryPointsBuilder` / `EntryPointDispatcher` / `FrameProviderDispatcher` / `GodotFrameProvider` /
     `GodotTimeProvider` — wire VContainer's entry-point/tickable system to Godot's `_Process`/`_PhysicsProcess`
     callbacks.

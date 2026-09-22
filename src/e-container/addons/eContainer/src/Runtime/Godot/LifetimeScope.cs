@@ -17,6 +17,8 @@ namespace Enaweg.Container.Godot;
 /// <remarks>
 /// With <see cref="AutoRun"/> enabled, the container builds in <c>_EnterTree</c> and is disposed in
 /// <c>_ExitTree</c>. A scope inherits from its resolved <see cref="Parent"/>; otherwise it creates a root container.
+/// <see cref="RootLifetimeScope"/> is the one exception: it defers its build to <c>_Ready</c>, so scopes entering
+/// the tree before it has built queue up and are flushed once it does.
 /// </remarks>
 [GlobalClass]
 public partial class LifetimeScope : Node
