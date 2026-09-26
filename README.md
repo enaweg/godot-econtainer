@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-pr.yml/badge.svg)](https://github.com/enaweg/godot-econtainer/actions/workflows/ci-pr.yml)
 ![Godot 4.7.2](https://img.shields.io/badge/Godot-v4.7.2-202020?logo=godot-engine&logoColor=blue&color=darkgreen&labelColor=202020)
-![Dotnet 8](https://img.shields.io/badge/8-02020?logo=dotnet&logoSize=auto&logoColor=purple&color=darkgreen&labelColor=E0E0E0)
+![.NET 8](https://img.shields.io/badge/.NET-8-202020?logo=dotnet&logoColor=purple&color=darkgreen&labelColor=202020)
 ![VContainer 1.19.0](https://img.shields.io/badge/VContainer-v1.19.0-202020?color=darkgreen&labelColor=202020)
 
 **NOTE**: This project is experimental and still a work in progress.
@@ -48,12 +48,43 @@ directory again.
 
 ## Features
 
-+ VContainer's `IObjectResolver`/`IContainerBuilder` API adapted to Godot's `Node` lifecycle.
-+ `LifetimeScope` builds and tears down a scoped container on `_EnterTree`/`_ExitTree`.
-+ Child scopes resolve their parent automatically and can be created in code or from a `PackedScene`.
-+ A top-level `RootLifetimeScope` autoload queues child scopes until their declared parent is ready, and defers its
-  own build to `_Ready` so other autoloads can contribute registrations first.
-+ Entry-point and tickable annotations: `IInitializable`, `IPostInitializable`, `ITickable`, and `IPhysicsTickable`.
+VContainer's `IObjectResolver`/`IContainerBuilder` API and its compile-time source generator, adapted to Godot's
+`Node` lifecycle.
+
+**Scopes**
+
++ `LifetimeScope` is a Godot `Node` that builds its container on `_EnterTree` and disposes it on `_ExitTree`. The
+  exported `AutoRun` flag turns the automatic build off when you want to call `Build()` yourself.
++ A scope finds its parent automatically - from the parent type name set in the inspector, an explicitly assigned
+  `ParentReference.Object`, a `FindParent()` override, or the override pushed by `LifetimeScope.EnqueueParent(...)`.
++ Child scopes can be created in code with `CreateChild<TScope>(...)` or instantiated from a `PackedScene` with
+  `CreateChildFromPackedScene<TScope>(...)`; `LifetimeScope.Create(...)` adds an ad-hoc scope under the root.
++ The `eContainer` autoload owns the single `RootLifetimeScope` every other scope ultimately inherits from. It
+  queues scopes whose declared parent has not entered the tree yet and flushes them as parents appear or the scene
+  changes, and defers its own build to `_Ready` so autoloads can still contribute registrations through
+  `LifetimeScope.Enqueue(...)`.
+
+**Registration and injection**
+
++ Installers: implement `IInstaller`, or wrap a callback in `ActionInstaller`, to reuse registrations across scopes.
++ `RegisterNode<T>(node)` registers an existing node as a service and injects it when the scope builds.
++ `IObjectResolver.InjectNode(node)` injects a node and its descendants, stopping at any nested `LifetimeScope` -
+  that scope injects its own subtree.
++ `IObjectResolver.Instantiate<T>(packedScene, parent)` instantiates, injects, and attaches a scene. Injection runs
+  before the node enters the tree, so `_EnterTree` and `_Ready` already see the injected members.
++ The exported `AutoInjectNodes` array injects inspector-assigned nodes as soon as the scope builds.
+
+**Entry points**
+
++ Lifecycle interfaces `IInitializable`, `IPostInitializable`, `ITickable`, and `IPhysicsTickable`, dispatched for
+  registrations made with `RegisterEntryPoint(...)` or `UseEntryPoints(...)`.
++ Per-scope entry-point exception handling via `RegisterEntryPointExceptionHandler(...)` or `e.OnException(...)`;
+  without a handler, exceptions are reported through `GD.PrintErr`.
++ `GodotTimeProvider.Process` and `GodotTimeProvider.PhysicsProcess` - `System.TimeProvider` implementations whose
+  clocks and timers are advanced by Godot's process and physics loops rather than wall-clock time.
+
+**Packaging**
+
 + Plugin installation and dependency management through the [ePlugin Framework](https://github.com/enaweg/godot-epluginframework).
 
 ## Motivation
@@ -83,9 +114,11 @@ public partial class GameLifetimeScope : LifetimeScope
 }
 ```
 
-Attach `GameLifetimeScope` to a node in a scene, or create one from code with `LifetimeScope.Create(...)`.
-`LifetimeScope` resolves its parent automatically - normally the `RootLifetimeScope` autoload - so registrations
-cascade down the scope hierarchy.
+`LifetimeScope` is a `Node`, so add `GameLifetimeScope` to a scene like any other node. From code, create a typed
+scope as a child of an existing one with `CreateChild<GameLifetimeScope>(...)` or
+`CreateChildFromPackedScene<GameLifetimeScope>(scene)`; `LifetimeScope.Create(...)` is the shortcut for an ad-hoc,
+untyped scope under the root. Either way the scope resolves its parent automatically - normally the
+`RootLifetimeScope` autoload - so registrations cascade down the scope hierarchy.
 
 ### Registering into the root scope
 
@@ -136,17 +169,41 @@ The lifecycle interfaces are opt-in: register their implementation with `Registe
 `UseEntryPoints`, rather than using `Register` alone. `IInitializable` runs first, followed by
 `IPostInitializable`; `ITickable` and `IPhysicsTickable` then run from `_Process` and `_PhysicsProcess`, respectively.
 
+### Injecting into nodes
+
+Nodes are not resolved from the container - they already exist in the scene tree - so they are injected instead:
+
+```csharp
+using Godot;
+using VContainer;
+
+public partial class Hud : Node
+{
+    PlayerService player = null!;
+
+    [Inject]
+    public void Construct(PlayerService player) => this.player = player;
+}
+```
+
+A scope injects the nodes listed in its exported `AutoInjectNodes` array as soon as it builds. To inject a subtree
+yourself, call `Container.InjectNode(node)`; it walks the node's descendants and stops at any nested `LifetimeScope`,
+which injects its own subtree from its own container. For nodes you spawn at runtime, use
+`Container.Instantiate<T>(packedScene, parent)` - it injects before attaching the node, so `_EnterTree` and `_Ready`
+already see the injected members. An existing node can also be registered as a service with
+`builder.RegisterNode<IHud>(hud)`, which injects it when the container is built.
+
 ## Development
 
 To build the C# assembly:
 
 ```bash
-dotnet nuget add source "$(pwd)/src/e-container/addons/eContainer/.libs" --name eContainer-local
 dotnet build src/e-container/gContainer.sln --configuration Debug
 ```
 
-The NuGet source setup is required on a clean checkout because the VContainer 1.19.0 packages are bundled in the
-repository under `src/e-container/addons/eContainer/.libs` rather than published to nuget.org.
+No NuGet setup is needed on a clean checkout: the VContainer 1.19.0 packages are bundled in the repository under
+`src/e-container/addons/eContainer/.libs` rather than published to nuget.org, and `src/e-container/nuget.config`
+already registers that directory as a package source.
 
 Opening `src/e-container/project.godot` in the Godot 4.7.2 .NET editor also triggers a build automatically and is the
 normal way to exercise the plugins.
