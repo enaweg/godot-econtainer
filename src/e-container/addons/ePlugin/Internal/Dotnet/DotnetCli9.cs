@@ -7,15 +7,10 @@ using Godot;
 
 namespace Enaweg.Plugin.Internal.Dotnet;
 
-internal sealed class DotnetCli9 : DotnetCliBase, IDotnetCli
+internal sealed class DotnetCli9(ILogger? logger, bool enableDebugLogging)
+    : DotnetCliBase(logger, enableDebugLogging), IDotnetCli
 {
     private const string CmdDotNet = "dotnet";
-    private readonly ILogger? logger;
-
-    public DotnetCli9(ILogger? logger, bool enableDebugLogging) : base(logger, enableDebugLogging)
-    {
-        this.logger = logger;
-    }
 
     public override void RebuildSolution()
     {

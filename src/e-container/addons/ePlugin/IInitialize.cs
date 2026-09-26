@@ -7,7 +7,7 @@
 /// <remarks>
 /// On startup the framework scans the executing assembly for all exported types that
 /// implement <see cref="IInitialize"/>, instantiates each with
-/// <see cref="System.Activator.CreateInstance(System.Type)"/>, and calls <see cref="Initialize"/> once with
+/// <see cref="Activator.CreateInstance"/>, and calls <see cref="Initialize"/> once with
 /// the <see cref="IEPlugin"/> instance.
 /// </remarks>
 public interface IInitialize

@@ -105,7 +105,7 @@ internal sealed class DotnetVersionManager : ExecuteCliBase
                 return true;
             }
         }
-        catch (Exception)
+        catch (Exception _)
         {
             // ignored
         }
