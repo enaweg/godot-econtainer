@@ -20,5 +20,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="VContainer.SourceGenerator" Version="1.19.0" />
     <PackageReference Include="VContainer.Standalone" Version="1.19.0" />
+    <PackageReference Include="ZLogger" Version="2.5.10" />
+    <PackageReference Include="ZString" Version="2.6.0" />
   </ItemGroup>
 </Project>
