@@ -198,7 +198,7 @@ already see the injected members. An existing node can also be registered as a s
 To build the C# assembly:
 
 ```bash
-dotnet build src/e-container/gContainer.sln --configuration Debug
+dotnet build src/e-container/eContainer.sln --configuration Debug
 ```
 
 No NuGet setup is needed on a clean checkout: the VContainer 1.19.0 packages are bundled in the repository under
@@ -216,7 +216,7 @@ test adapter, so they need a Godot binary:
 ```bash
 export GODOT_BIN=/path/to/godot
 "$GODOT_BIN" --path src/e-container --editor --headless --quit-after 2000
-dotnet test src/e-container/gContainer.sln --configuration Debug --settings src/e-container/.runsettings
+dotnet test src/e-container/eContainer.sln --configuration Debug --settings src/e-container/.runsettings
 ```
 
 The editor cache refresh is not optional: without it the `eContainer` autoload is never instantiated and the

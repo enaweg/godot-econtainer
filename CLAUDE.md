@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `godot-econtainer` is a port of Unity's [VContainer](https://github.com/hadashiA/VContainer) dependency-injection
 library to the Godot Engine (4.7, C#/.NET). The actual Godot project lives under `src/e-container/` (Godot project
-root, assembly name `gContainer`), and the DI library ships as a Godot editor addon at
+root, assembly name `eContainer`), and the DI library ships as a Godot editor addon at
 `src/e-container/addons/eContainer/`.
 
 A second addon, `src/e-container/addons/ePlugin/`, is a small in-house framework for building declarative,
@@ -27,12 +27,12 @@ instead of raw `git`/`gh` shell commands.
 There is no separate CLI build step outside of Godot/.NET tooling — the addons are Godot editor plugins, not
 standalone libraries.
 
-- Build the C# assembly: `dotnet build src/e-container/gContainer.csproj` (targets `net8.0`, or `net9.0` when
+- Build the C# assembly: `dotnet build src/e-container/eContainer.csproj` (targets `net8.0`, or `net9.0` when
   `GodotTargetPlatform=android`).
 - Opening `src/e-container/project.godot` in the Godot 4.7 editor will trigger a dotnet build automatically and is
   the normal way to exercise the plugins (they register/unregister themselves via the editor plugin lifecycle).
-- Tests live in `src/e-container/test/` inside the same `gContainer.csproj` and use gdUnit4 via the .NET test
-  adapter. Run them with `dotnet test src/e-container/gContainer.sln --settings src/e-container/.runsettings`; a
+- Tests live in `src/e-container/test/` inside the same `eContainer.csproj` and use gdUnit4 via the .NET test
+  adapter. Run them with `dotnet test src/e-container/eContainer.sln --settings src/e-container/.runsettings`; a
   `GODOT_BIN` environment variable pointing at a Godot binary is required. On a stale or missing `.godot/` cache the
   `eContainer` autoload is not instantiated, `LifetimeScope.Root` stays null, and every `LifetimeScopeTest` case
   fails with an NRE — run `"$GODOT_BIN" --path src/e-container --editor --headless --quit-after 2000` first, which

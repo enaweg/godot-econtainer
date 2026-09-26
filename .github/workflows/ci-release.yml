@@ -43,7 +43,7 @@ jobs:
 
       - name: Build
         working-directory: src/e-container
-        run: dotnet build gContainer.sln --configuration Debug
+        run: dotnet build eContainer.sln --configuration Debug
 
       - name: Rebuild Godot project cache
         working-directory: src/e-container
@@ -54,7 +54,7 @@ jobs:
         working-directory: src/e-container
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
-            dotnet test gContainer.sln --configuration Debug --no-build --settings .runsettings --verbosity normal -m:1
+            dotnet test eContainer.sln --configuration Debug --no-build --settings .runsettings --verbosity normal -m:1
 
       - name: Initialize version
         shell: bash
