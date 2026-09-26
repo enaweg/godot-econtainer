@@ -27,7 +27,7 @@ window/stretch/aspect="expand"
 
 [dotnet]
 
-project/assembly_name="gContainer"
+project/assembly_name="eContainer"
 
 [editor_plugins]
 
