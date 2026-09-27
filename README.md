@@ -46,6 +46,56 @@ The release archive ships that source directory hidden as `addons/eContainer/.sr
 plugin does not get compiled into your project. Enabling the plugin renames it to `src`; disabling it hides the
 directory again.
 
+## What is VContainer?
+
+[VContainer](https://github.com/hadashiA/VContainer) is a dependency-injection container for .NET written by
+[hadashiA](https://github.com/hadashiA), best known as the fast, low-allocation DI container for Unity. It is MIT
+licensed. eContainer builds on the engine-agnostic `VContainer.Standalone` package, so the container itself - its
+registration API, resolver, and source generator - is upstream VContainer; eContainer supplies the Godot adaptation
+layer on top of it.
+
+Upstream describes it as *"the extra fast DI (Dependency Injection) for Unity Game Engine"*: by its own benchmarks
+VContainer resolves **5-10x faster than Zenject** and does so with **zero allocation** when a resolve hands back
+instances that already exist, measured over 10,000 iterations per case on Unity 2019.x with IL2CPP. Those figures were
+taken on Unity and eContainer does not re-run them on Godot - but the container being measured is the same code, and
+the design choices behind the numbers (few internal types, few virtual calls, no reflection on the resolve path) apply
+here unchanged.
+
+Its major features:
+
++ **Constructor injection first.** A type's dependencies are declared as constructor parameters and the container
+  fills them in. Where a constructor is not available - Godot nodes being the obvious case - method injection via
+  `[Inject]`, plus field and property injection, cover the gap. `[InjectIgnore]` opts a member back out.
++ **Three lifetimes.** `Lifetime.Singleton` (one instance for the root container and everything below it),
+  `Lifetime.Scoped` (one instance per scope, disposed with that scope), and `Lifetime.Transient` (a new instance per
+  resolution).
++ **Hierarchical scopes.** A container can create child containers that inherit their parent's registrations and add
+  their own. Resolution walks up the chain, so a child sees everything its parents registered, while the parent stays
+  unaware of the child. This is the feature eContainer maps onto the scene tree through `LifetimeScope`.
++ **An expressive registration API.** `Register<T>`, `RegisterInstance`, and `RegisterFactory` are refined with
+  `As<T>()`, `AsSelf()`, and `AsImplementedInterfaces()` to control which types a registration answers to, and with
+  `WithParameter(...)` to pin a specific constructor argument. Keyed registrations and open generic types are
+  supported as well.
++ **Compile-time code generation.** The `VContainer.SourceGenerator` package emits an injector per injectable type at
+  build time, so resolution does not pay for runtime reflection. Types the generator did not see still work - the
+  container falls back to a reflection-based injector.
++ **Fast, allocation-conscious resolution.** Registrations are analysed once when the container is built, and the hot
+  resolve path is written to avoid allocations, which matters when resolution happens during gameplay rather than only
+  at startup.
++ **Immutable containers.** A container is fixed once built - registrations go in through the builder, never into a
+  live container - which makes resolving from it thread-safe and keeps what a scope provides predictable.
++ **Deterministic disposal.** Registrations that implement `IDisposable` are disposed together with the scope that
+  owns them, so tearing down a scope tears down what it created.
+
+Not everything upstream advertises reaches Godot. VContainer's Unity integration (`MonoBehaviour` registration,
+`GameObject` injection, the Unity `LifetimeScope`) is replaced by eContainer's Godot equivalents, and its plain-C#
+entry points - `IStartable`/`ITickable`, dispatched from a custom Unity `PlayerLoopSystem` - are replaced by the
+`IInitializable`, `IPostInitializable`, `ITickable`, and `IPhysicsTickable` interfaces described below, which Godot's
+`_Process` and `_PhysicsProcess` drive instead. The Unity-editor-only extras - the Diagnostics Window and the UniTask
+and ECS integrations - have no equivalent here; `VContainer.Standalone` does not ship them.
+
+For the container API itself, [VContainer's documentation](https://vcontainer.hadashikick.jp/) applies directly.
+
 ## Features
 
 VContainer's `IObjectResolver`/`IContainerBuilder` API and its compile-time source generator, adapted to Godot's
