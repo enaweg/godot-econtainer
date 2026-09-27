@@ -54,6 +54,13 @@ licensed. eContainer builds on the engine-agnostic `VContainer.Standalone` packa
 registration API, resolver, and source generator - is upstream VContainer; eContainer supplies the Godot adaptation
 layer on top of it.
 
+Upstream describes it as *"the extra fast DI (Dependency Injection) for Unity Game Engine"*: by its own benchmarks
+VContainer resolves **5-10x faster than Zenject** and does so with **zero allocation** when a resolve hands back
+instances that already exist, measured over 10,000 iterations per case on Unity 2019.x with IL2CPP. Those figures were
+taken on Unity and eContainer does not re-run them on Godot - but the container being measured is the same code, and
+the design choices behind the numbers (few internal types, few virtual calls, no reflection on the resolve path) apply
+here unchanged.
+
 Its major features:
 
 + **Constructor injection first.** A type's dependencies are declared as constructor parameters and the container
@@ -75,14 +82,17 @@ Its major features:
 + **Fast, allocation-conscious resolution.** Registrations are analysed once when the container is built, and the hot
   resolve path is written to avoid allocations, which matters when resolution happens during gameplay rather than only
   at startup.
++ **Immutable containers.** A container is fixed once built - registrations go in through the builder, never into a
+  live container - which makes resolving from it thread-safe and keeps what a scope provides predictable.
 + **Deterministic disposal.** Registrations that implement `IDisposable` are disposed together with the scope that
   owns them, so tearing down a scope tears down what it created.
 
-Two upstream areas are deliberately not carried over: VContainer's Unity integration (`MonoBehaviour` registration,
-`GameObject` injection, the Unity `LifetimeScope`) is replaced by eContainer's Godot equivalents, and VContainer's own
-`IStartable`/`ITickable` entry points - dispatched by Unity's PlayerLoop - are replaced by the `IInitializable`,
-`IPostInitializable`, `ITickable`, and `IPhysicsTickable` interfaces described below, which Godot's `_Process` and
-`_PhysicsProcess` drive instead.
+Not everything upstream advertises reaches Godot. VContainer's Unity integration (`MonoBehaviour` registration,
+`GameObject` injection, the Unity `LifetimeScope`) is replaced by eContainer's Godot equivalents, and its plain-C#
+entry points - `IStartable`/`ITickable`, dispatched from a custom Unity `PlayerLoopSystem` - are replaced by the
+`IInitializable`, `IPostInitializable`, `ITickable`, and `IPhysicsTickable` interfaces described below, which Godot's
+`_Process` and `_PhysicsProcess` drive instead. The Unity-editor-only extras - the Diagnostics Window and the UniTask
+and ECS integrations - have no equivalent here; `VContainer.Standalone` does not ship them.
 
 For the container API itself, [VContainer's documentation](https://vcontainer.hadashikick.jp/) applies directly.
 
