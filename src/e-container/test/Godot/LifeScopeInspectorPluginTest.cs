@@ -28,6 +28,14 @@ public partial class LifeScopeInspectorPluginTest
         AssertBool(plugin._CanHandle(AutoFree(new LifetimeScope())!)).IsTrue();
     }
 
+    // EContainerPlugin registers the inspector by type name, since it compiles without the
+    // sources; a rename of the inspector class must not silently stop it from registering.
+    [TestCase]
+    public void EContainerPlugin_CreatesTheInspectorByItsTypeName()
+    {
+        AssertObject(EContainerPlugin.CreateLifetimeScopeInspector()).IsInstanceOf<LifeScopeInspectorPlugin>();
+    }
+
     [TestCase]
     public void CanHandle_RejectsNodesThatAreNotScopes()
     {

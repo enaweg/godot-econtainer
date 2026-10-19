@@ -7,6 +7,7 @@ using Enaweg.Container.Godot;
 #if TOOLS
 namespace Enaweg.Container.Editor;
 
+[Tool]
 public partial class ParentReferenceEditorProperty : EditorProperty
 {
     // Index 0 is the "no parent declared" entry. It is shown as "None" but stored as an empty
