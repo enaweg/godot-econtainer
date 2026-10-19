@@ -25,7 +25,9 @@ public partial class ParentReferenceEditorProperty : EditorProperty
             .ToArray();
     }
 
-    string[] names = [];
+    // Loaded on the first _UpdateProperty(). It used to start out as an empty array, so the
+    // lazy load never ran and the dropdown never listed a single type.
+    string[]? names;
     private OptionButton optionButton = new OptionButton();
 
     public ParentReferenceEditorProperty()
@@ -38,10 +40,14 @@ public partial class ParentReferenceEditorProperty : EditorProperty
 
     public override void _UpdateProperty()
     {
-        if (names == null)
-        {
-            names = GetAllTypeNames();
-        }
+        ShowValue(GetEditedObject().Get(GetEditedProperty()).AsString());
+    }
+
+    // Split from _UpdateProperty() so tests can drive it: an edited object can only be set up by
+    // the editor's own inspector, and SetObjectAndProperty() crashes the engine outside of it.
+    internal void ShowValue(string? value)
+    {
+        names ??= GetAllTypeNames();
 
         optionButton.Clear();
         foreach (var name in names)
@@ -49,7 +55,6 @@ public partial class ParentReferenceEditorProperty : EditorProperty
             optionButton.AddItem(name == NoneValue ? NoneLabel : name);
         }
 
-        var value = GetEditedObject().Get(GetEditedProperty()).AsString();
         var index = Array.IndexOf(names, value ?? NoneValue);
 
         // A name that is not in the list - a scope type that was renamed or failed to compile -
@@ -63,6 +68,9 @@ public partial class ParentReferenceEditorProperty : EditorProperty
         // EmitChanged routes the edit through the inspector, so it lands in the undo/redo
         // history and marks the scene dirty. Assigning with GetEditedObject().Set() wrote the
         // value straight onto the node and bypassed both.
+        if (names == null)
+            return;
+
         EmitChanged(GetEditedProperty(), names[index]);
     }
 }
