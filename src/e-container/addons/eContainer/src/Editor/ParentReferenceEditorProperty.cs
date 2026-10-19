@@ -33,6 +33,10 @@ public partial class ParentReferenceEditorProperty : EditorProperty
 
     public ParentReferenceEditorProperty()
     {
+        // Sized to the inspector column rather than to the longest type name, which otherwise
+        // squeezed the property label down to its first few letters.
+        optionButton.FitToLongestItem = false;
+        optionButton.ClipText = true;
         AddChild(optionButton);
         AddFocusable(optionButton);
 
