@@ -17,7 +17,7 @@
 
 **NOTE**: This project is experimental and still a work in progress.
 
-**NOTE2**: This is based on https://github.com/nazgull30
+**NOTE2**: This is based on code from Nazgull30 at https://github.com/nazgull30/VContainerCore
 
 </div>
 
