@@ -36,6 +36,11 @@ public class GodotTimeProvider : TimeProvider
     {
         return TimeSpan.FromSeconds(time).Ticks;
     }
+
+    // GetTimestamp() counts TimeSpan ticks. Without this override the frequency is inherited
+    // from Stopwatch - 1 GHz on Linux - and GetElapsedTime() came out 100 times too short.
+    /// <inheritdoc />
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 }
 
 internal sealed class FrameTimer : ITimer, IFrameRunnerWorkItem

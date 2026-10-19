@@ -34,6 +34,27 @@ public class GodotTimeProviderTest
         }
     }
 
+    // TimestampFrequency has to match the unit GetTimestamp() counts in, or every elapsed-time
+    // calculation built on the two - GetElapsedTime() included - is off by their ratio.
+    [TestCase]
+    public void GetElapsedTime_MatchesAccumulatedFrameTime()
+    {
+        var original = GodotTimeProvider.Process.time;
+        try
+        {
+            GodotTimeProvider.Process.time = 1.0;
+            var start = GodotTimeProvider.Process.GetTimestamp();
+            GodotTimeProvider.Process.time = 3.5;
+
+            AssertFloat(GodotTimeProvider.Process.GetElapsedTime(start).TotalSeconds)
+                .IsEqualApprox(2.5, 0.0001);
+        }
+        finally
+        {
+            GodotTimeProvider.Process.time = original;
+        }
+    }
+
     [TestCase]
     public void CreateTimer_ReturnsTimerDrivenByTheProcessFrameProvider()
     {
