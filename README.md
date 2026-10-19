@@ -50,6 +50,9 @@ The editor is busy for a moment while eContainer is enabled, because ePlugin reb
 window shows what is happening. Commit the `addons/eplugin-state.json` file ePlugin writes along with your addons,
 but not `addons/eplugin-state.json.user`.
 
+Once installed, the ePlugin Manager checks the eContainer GitHub releases for new versions and can install updates
+for you.
+
 eContainer depends on ePlugin. When it is enabled, ePlugin adds the bundled VContainer 1.19.0 packages to the Godot
 project, registers their local package source in `nuget.config`, adds the `eContainer` autoload, and un-hides the
 plugin's runtime source directory. No manual `dotnet add package` step is needed.
@@ -173,7 +176,8 @@ VContainer's `IObjectResolver`/`IContainerBuilder` API and its compile-time sour
 
 **Packaging**
 
-+ Plugin installation and dependency management through the [ePlugin Framework](https://github.com/enaweg/godot-epluginframework).
++ Plugin installation, dependency management, and updates from GitHub releases through the
+  [ePlugin Framework](https://github.com/enaweg/godot-epluginframework).
 + The VContainer packages ship inside the plugin and install from a local package source, so no access to nuget.org
   is needed.
 + The runtime sources stay hidden, and out of your build, while the plugin is disabled.
