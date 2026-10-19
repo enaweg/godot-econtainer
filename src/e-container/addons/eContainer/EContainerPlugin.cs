@@ -7,14 +7,8 @@ using Godot;
 namespace Enaweg.Container;
 
 [Tool]
-public partial class EContainerPlugin : EditorPlugin, IEEditorPlugin, IInitialize
+public partial class EContainerPlugin : EditorPlugin, IEEditorPlugin
 {
-    // Looked up by name rather than referenced: the sources ship hidden as .src and are only
-    // compiled once the plugin is enabled, while this file is always compiled.
-    internal const string InspectorPluginTypeName = "Enaweg.Container.Editor.LifeScopeInspectorPlugin";
-
-    EditorInspectorPlugin? inspectorPlugin;
-
     public void CreateRecipe(IEEditorPluginBuilder builder)
     {
         var pluginDirectory = this.GetPluginDirectory()
@@ -27,25 +21,6 @@ public partial class EContainerPlugin : EditorPlugin, IEEditorPlugin, IInitializ
             .AddAutoload("eContainer", "res://addons/eContainer/eContainer.tscn");
     }
 
-    // ePlugin calls this whenever it creates this plugin's context: on editor start, when the
-    // plugin is enabled, and after every assembly reload - including the one that first compiles
-    // the sources, which _EnterTree would already have missed.
-    public void Initialize(IEPlugin ePlugin)
-    {
-        AddLifetimeScopeInspector();
-    }
-
-    public override void _ExitTree()
-    {
-        if (inspectorPlugin != null)
-        {
-            RemoveInspectorPlugin(inspectorPlugin);
-            inspectorPlugin = null;
-        }
-
-        base._ExitTree();
-    }
-
     public override void _EnablePlugin()
     {
         base._EnablePlugin();
@@ -56,27 +31,6 @@ public partial class EContainerPlugin : EditorPlugin, IEEditorPlugin, IInitializ
     {
         this.DisableEPlugin();
         base._DisablePlugin();
-    }
-
-    /// <summary>Creates the <c>LifetimeScope</c> inspector, or returns <see langword="null"/> while the sources are not compiled.</summary>
-    internal static EditorInspectorPlugin? CreateLifetimeScopeInspector()
-    {
-        Type? type = typeof(EContainerPlugin).Assembly.GetType(InspectorPluginTypeName);
-        return type == null ? null : (EditorInspectorPlugin?)Activator.CreateInstance(type);
-    }
-
-    void AddLifetimeScopeInspector()
-    {
-        // The inspector used to be written but never registered, so the parent-type dropdown
-        // never showed up in the editor.
-        if (inspectorPlugin != null)
-            return;
-
-        inspectorPlugin = CreateLifetimeScopeInspector();
-        if (inspectorPlugin != null)
-        {
-            AddInspectorPlugin(inspectorPlugin);
-        }
     }
 }
 #endif
