@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "lastCompletedAttemptId": "897763e9-eb03-44b8-9835-e1ebe0040434",
+  "plugins": [
+    {
+      "slug": "eContainer",
+      "version": "1.0",
+      "state": "activated"
+    },
+    {
+      "slug": "eLogger",
+      "version": "0.4.0",
+      "state": "activated"
+    },
+    {
+      "slug": "ePlugin",
+      "version": "0.10.0",
+      "state": "activated"
+    },
+    {
+      "slug": "gdUnit4",
+      "version": "6.2.2",
+      "state": "activated"
+    }
+  ],
+  "welcomes": [
+    {
+      "slug": "ePlugin",
+      "version": "0.10.0",
+      "shownUtc": "2026-10-19T09:17:54.5611035+00:00"
+    },
+    {
+      "slug": "gdUnit4",
+      "version": "6.2.2",
+      "shownUtc": "2026-10-19T09:18:38.8756402+00:00"
+    }
+  ]
+}
