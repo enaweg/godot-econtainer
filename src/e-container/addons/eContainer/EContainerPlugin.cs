@@ -27,16 +27,11 @@ public partial class EContainerPlugin : EditorPlugin, IEEditorPlugin, IInitializ
             .AddAutoload("eContainer", "res://addons/eContainer/eContainer.tscn");
     }
 
-    // ePlugin calls this whenever it creates this plugin's context, which includes after the
-    // assembly reload that first compiles the sources - _EnterTree has run before that.
+    // ePlugin calls this whenever it creates this plugin's context: on editor start, when the
+    // plugin is enabled, and after every assembly reload - including the one that first compiles
+    // the sources, which _EnterTree would already have missed.
     public void Initialize(IEPlugin ePlugin)
     {
-        AddLifetimeScopeInspector();
-    }
-
-    public override void _EnterTree()
-    {
-        base._EnterTree();
         AddLifetimeScopeInspector();
     }
 
