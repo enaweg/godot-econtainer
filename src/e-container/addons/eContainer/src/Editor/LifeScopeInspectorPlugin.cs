@@ -4,6 +4,7 @@ using Godot;
 #if TOOLS
 namespace Enaweg.Container.Editor;
 
+[Tool]
 public partial class LifeScopeInspectorPlugin : EditorInspectorPlugin
 {
 	public override bool _CanHandle(GodotObject @object)

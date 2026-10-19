@@ -98,9 +98,17 @@ public class GodotFrameProvider : FrameProvider
 				catch (Exception ex)
 				{
 					TryRemove(i);
+					// Without a handler the work item used to vanish without a trace. Fall back
+					// to the engine log, as the tickable loop items do.
+					if (ExceptionHandler == null)
+					{
+						GD.PrintErr(ex);
+						continue;
+					}
+
 					try
 					{
-						ExceptionHandler?.Publish(ex);
+						ExceptionHandler.Publish(ex);
 					}
 					catch { }
 				}

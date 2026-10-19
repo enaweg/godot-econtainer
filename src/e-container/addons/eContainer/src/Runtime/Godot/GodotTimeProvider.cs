@@ -36,6 +36,11 @@ public class GodotTimeProvider : TimeProvider
     {
         return TimeSpan.FromSeconds(time).Ticks;
     }
+
+    // GetTimestamp() counts TimeSpan ticks. Without this override the frequency is inherited
+    // from Stopwatch - 1 GHz on Linux - and GetElapsedTime() came out 100 times too short.
+    /// <inheritdoc />
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 }
 
 internal sealed class FrameTimer : ITimer, IFrameRunnerWorkItem
@@ -136,7 +141,10 @@ internal sealed class FrameTimer : ITimer, IFrameRunnerWorkItem
                 {
                     callback(state);
 
-                    elapsed = 0;
+                    // Keep the overshoot past the due time: the period counts from when the
+                    // timer was due, not from the frame that happened to notice. Resetting to
+                    // zero made every period drift late by up to a frame.
+                    elapsed -= dt;
                     // A zero period has the same one-shot behavior as System.Threading.Timer.
                     // Leaving it in RunningPeriod made it invoke once per Godot frame.
                     if (period == Timeout.InfiniteTimeSpan || period == TimeSpan.Zero)
@@ -159,7 +167,10 @@ internal sealed class FrameTimer : ITimer, IFrameRunnerWorkItem
                 if (elapsed >= dt)
                 {
                     callback(state);
-                    elapsed = 0;
+                    // The remainder carries over so the average period stays exact. Whole periods
+                    // missed during a long frame are dropped rather than fired back to back, as
+                    // System.Threading.Timer does not catch up either.
+                    elapsed = dt > 0 ? elapsed % dt : 0;
                 }
 
                 return ChangeState(RunningState.RunningPeriod);
